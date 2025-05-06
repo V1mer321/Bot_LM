@@ -1,0 +1,1 @@
+"__pycache__/"    echo "*.pyc"    echo "*.pyo"    echo ".idea/"    echo "venv/"    echo "env/"    echo "*.log" 
