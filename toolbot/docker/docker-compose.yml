@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Основной сервис с ботом
+  toolbot:
+    build:
+      context: ../..
+      dockerfile: toolbot/docker/Dockerfile
+    container_name: toolbot_main
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../../logs:/app/logs
+      - ../../config.encrypted:/app/config.encrypted
+    depends_on:
+      - redis
+    networks:
+      - toolbot_network
+
+  # Redis для кэширования и обмена данными между компонентами
+  redis:
+    image: redis:7-alpine
+    container_name: toolbot_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-ChangeMe123!}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - toolbot_network
+
+  # Сервис для мониторинга и управления
+  monitoring:
+    build:
+      context: ../..
+      dockerfile: toolbot/docker/Dockerfile.monitoring
+    container_name: toolbot_monitoring
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DASHBOARD_PORT=8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - toolbot
+      - redis
+    networks:
+      - toolbot_network
+
+  # Сервис для ML-инференса (опционально, если требуется отдельное масштабирование)
+  ml_service:
+    build:
+      context: ../..
+      dockerfile: toolbot/docker/Dockerfile.ml
+    container_name: toolbot_ml
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GPU_ENABLED=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    volumes:
+      - ../../models:/app/models
+    depends_on:
+      - redis
+    networks:
+      - toolbot_network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  toolbot_network:
+    driver: bridge 

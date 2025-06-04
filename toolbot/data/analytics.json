@@ -1,0 +1,194 @@
+{
+  "total_requests": 348,
+  "start_time": 1747407215.8726788,
+  "users": {
+    "back_to_menu": {
+      "first_seen": 1747407216.6148555,
+      "requests": 90,
+      "commands": {
+        "2093834331": 2,
+        "5684611403": 5,
+        "2093834331": 1
+      }
+    },
+    "start": {
+      "first_seen": 1747407216.6155076,
+      "requests": 105,
+      "commands": {
+        "2093834331": 2,
+        "1791390251": 2,
+        "5684611403": 5,
+        "2093834331": 1
+      }
+    },
+    "help": {
+      "first_seen": 1747409016.7868695,
+      "requests": 25,
+      "commands": {
+        "2093834331": 2,
+        "2093834331": 1
+      }
+    },
+    "contacts": {
+      "first_seen": 1747409242.5802243,
+      "requests": 4,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "skobyanka": {
+      "first_seen": 1747409244.1071072,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search": {
+      "first_seen": 1747409247.4802134,
+      "requests": 46,
+      "commands": {
+        "2093834331": 2,
+        "5684611403": 5
+      }
+    },
+    "photo_search_🔨 Инструменты": {
+      "first_seen": 1747409248.746631,
+      "requests": 2,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🔧 Крепеж": {
+      "first_seen": 1747410502.3945005,
+      "requests": 2,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🎨 Краска": {
+      "first_seen": 1748986267.4809315,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🧱 Строительные материалы": {
+      "first_seen": 1749047387.9900968,
+      "requests": 22,
+      "commands": {
+        "2093834331": 1,
+        "5684611403": 1
+      }
+    },
+    "2093834331": {
+      "first_seen": 1749047401.9345448,
+      "requests": 8,
+      "commands": {}
+    },
+    "photo_search_🎨 Краски": {
+      "first_seen": 1749052627.7290072,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🏠 Напольные покрытия": {
+      "first_seen": 1749053043.8580832,
+      "requests": 2,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🚽 Сантехника": {
+      "first_seen": 1749054744.9467683,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "admin_panel": {
+      "first_seen": 1749059762.1207726,
+      "requests": 29,
+      "commands": {
+        "2093834331": 1,
+        "2093834331": 1
+      }
+    },
+    "text_search": {
+      "first_seen": 1749060866.0471063,
+      "requests": 4,
+      "commands": {
+        "2093834331": 3,
+        "2093834331": 1
+      }
+    },
+    "photo_search_⚡ Электротовары": {
+      "first_seen": 1749064572.6378872,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "error_report": {
+      "first_seen": 1749065335.2691143,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "improvement_suggestion": {
+      "first_seen": 1749065349.3467834,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🧱 Плитка": {
+      "first_seen": 1749066052.5679762,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    },
+    "photo_search_🌱 Сад": {
+      "first_seen": 1749066575.5829022,
+      "requests": 1,
+      "commands": {
+        "2093834331": 1
+      }
+    }
+  },
+  "commands": {
+    "2093834331": 10,
+    "1791390251": 2,
+    "5684611403": 16,
+    "2093834331": 5
+  },
+  "photo_searches": {
+    "total": 8,
+    "success": 8,
+    "failures": 0
+  },
+  "departments": {
+    "🧱 Строительные материалы": {
+      "total": 5,
+      "success": 5,
+      "failures": 0
+    },
+    "🎨 Краски": {
+      "total": 1,
+      "success": 1,
+      "failures": 0
+    },
+    "🏠 Напольные покрытия": {
+      "total": 1,
+      "success": 1,
+      "failures": 0
+    },
+    "🚽 Сантехника": {
+      "total": 1,
+      "success": 1,
+      "failures": 0
+    }
+  }
+}
