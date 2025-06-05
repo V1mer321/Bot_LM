@@ -248,4 +248,4 @@ python -c "import torch, transformers, faiss; print('OK')"
 
 **Автор**: ToolBot Development Team  
 **Версия**: 2.0.2  
-**Последнее обновление**: Декабрь 2024
+**Последнее обновление**: 5 июня 2025
