@@ -17,10 +17,16 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     user_id = update.effective_user.id
     username = update.effective_user.username or "пользователь"
+    first_name = update.effective_user.first_name or ""
+    last_name = update.effective_user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
     
-    # Логируем использование команды
+    # Логируем вход пользователя и использование команды
     analytics = context.bot_data.get('analytics')
     if analytics:
+        # Логируем вход в бота с информацией о пользователе
+        user_info = f"@{username}" if username else full_name or f"ID:{user_id}"
+        analytics.log_user_activity(user_id, "user_login", f"Пользователь {user_info} зашел в бота")
         analytics.log_command("start", user_id)
     
     # Проверяем, есть ли пользователь в белом списке

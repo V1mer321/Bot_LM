@@ -27,6 +27,9 @@ onnx>=1.14.0
 redis>=4.6.0
 pymongo>=4.5.0
 
+# PostgreSQL database
+psycopg2-binary>=2.9.0
+
 # Monitoring
 colorama>=0.4.6
 psutil>=5.9.0

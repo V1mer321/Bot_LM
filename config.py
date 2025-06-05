@@ -44,24 +44,28 @@ def is_allowed_user(user_id: int) -> bool:
     Returns:
         True, если пользователь разрешен, иначе False
     """
-    config = load_config()
-    allowed_users = config.get("allowed_users", [])
-    whitelist = config.get("whitelist", [])
-    admin_users = config.get("admin_users", [])
-    admin_ids = config.get("admin_ids", [])
-    admins = config.get("admins", [])
+    # ЗАКОММЕНТИРОВАНО: Проверка доступа отключена - все пользователи могут использовать бота
+    # config = load_config()
+    # allowed_users = config.get("allowed_users", [])
+    # whitelist = config.get("whitelist", [])
+    # admin_users = config.get("admin_users", [])
+    # admin_ids = config.get("admin_ids", [])
+    # admins = config.get("admins", [])
     
-    # Считаем, что при тестировании все пользователи разрешены
-    if not allowed_users and not whitelist:
-        return True
+    # # Считаем, что при тестировании все пользователи разрешены
+    # if not allowed_users and not whitelist:
+    #     return True
     
-    # Проверяем все возможные списки
-    if (user_id in allowed_users or user_id in whitelist or 
-        user_id in admin_users or user_id in admin_ids or 
-        user_id in admins):
-        return True
+    # # Проверяем все возможные списки
+    # if (user_id in allowed_users or user_id in whitelist or 
+    #     user_id in admin_users or user_id in admin_ids or 
+    #     user_id in admins):
+    #     return True
     
-    return False
+    # return False
+    
+    # Разрешаем доступ всем пользователям
+    return True
 
 def is_admin(user_id: int) -> bool:
     """

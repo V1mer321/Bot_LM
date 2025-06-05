@@ -112,7 +112,7 @@ async def search_in_colors(query: str) -> list:
 
 async def search_in_stores(query: str) -> list:
     """
-    Поиск в базе магазинов по их названию и адресу
+    Поиск в базе магазинов/отделов по названию и отделу (SQLite)
     
     Args:
         query: Поисковый запрос
@@ -121,89 +121,79 @@ async def search_in_stores(query: str) -> list:
         Список строк с результатами поиска
     """
     try:
-        config = load_config()
-        if not config:
-            logger.error("Невозможно загрузить конфигурацию для поиска магазинов")
-            return ["❌ Ошибка при загрузке конфигурации"]
-            
-        # Используем ключ table_2 вместо stores_file
-        excel_file = config.get('table_2')
-        if not excel_file or not os.path.exists(excel_file):
-            # Пробуем использовать абсолютный путь как запасной вариант
-            excel_file = "C:\\Users\\PluxuryPC\\PycharmProjects\\PythonProject5\\data\\table_2.xlsx"
-            if not os.path.exists(excel_file):
-                logger.error(f"Файл с базой магазинов не найден: {excel_file}")
-                return ["❌ Файл с базой магазинов не найден"]
+        # Путь к базе данных
+        db_path = "data/excel_data.db"
+        if not os.path.exists(db_path):
+            logger.error(f"База данных {db_path} не найдена")
+            return ["❌ База данных магазинов не найдена"]
         
-        # Читаем Excel файл
-        df = pd.read_excel(excel_file)
-        logger.info(f"Загружена таблица магазинов. Количество строк: {len(df)}")
-        logger.info(f"Колонки в таблице: {df.columns.tolist()}")
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        # Проверяем наличие колонки 'Наименование'
-        if 'Наименование' not in df.columns:
-            logger.error(f"❌ В таблице отсутствует колонка 'Наименование'")
-            return ["❌ Ошибка в структуре таблицы магазинов"]
-
-        # Если запрос пустой, возвращаем первые 15 строк
+        # Получаем все данные из БД
+        cursor.execute("""
+            SELECT code, name, department, phone_numbers
+            FROM stores 
+            ORDER BY name
+        """)
+        
+        all_results = cursor.fetchall()
+        
+        # Если запрос пустой, возвращаем первые 15 магазинов
         if not query.strip():
-            results = []
-            for _, row in df.head(15).iterrows():
-                store_info = [f"🏪 *{row['Наименование']}*"]
-                
-                for col in df.columns:
-                    if col != 'Наименование':
-                        value = row[col]
-                        if pd.notna(value):  # Проверяем, что значение не NaN
-                            formatted_value = format_numeric_value(value)
-                            store_info.append(f"• {col}: {formatted_value}")
-                
-                results.append("\n".join(store_info))
-            return results
-
-        # Приводим запрос к нижнему регистру
-        query = query.lower().strip()
-        logger.info(f"Поисковый запрос для магазинов: {query}")
-
-        # Поиск по всем текстовым колонкам
-        matches = df.apply(
-            lambda row: any(
-                str(value).lower().find(query) != -1 
-                for value in row if pd.notna(value) and isinstance(value, str)
-            ), 
-            axis=1
-        )
-        
-        results_df = df[matches]
-        logger.info(f"Найдено совпадений: {len(results_df)}")
-        
-        if not results_df.empty:
-            # Форматируем результаты
-            results = []
-            for _, row in results_df.iterrows():
-                store_info = [f"🏪 *{row['Наименование']}*"]
-                
-                for col in df.columns:
-                    if col != 'Наименование':
-                        value = row[col]
-                        if pd.notna(value):  # Проверяем, что значение не NaN
-                            formatted_value = format_numeric_value(value)
-                            if col == 'Отдел':
-                                store_info.append(f"📍 Отдел: {formatted_value}")
-                            else:
-                                store_info.append(f"• {col}: {formatted_value}")
-                
-                results.append("\n".join(store_info))
-            
-            return results
+            results = all_results[:15]
         else:
-            # Выводим для отладки
-            logger.info("Примеры данных из таблицы:")
-            logger.info(df['Наименование'].head().to_string())
-            return []
+            # Фильтруем результаты в Python (поиск по 2-й и 3-й колонке)
+            query_lower = query.lower()
+            filtered_results = []
+            
+            for row in all_results:
+                code, name, dept, phones = row
+                name_lower = (name or "").lower()
+                dept_lower = (dept or "").lower()
+                
+                # Проверяем вхождение подстроки в название или отдел
+                if query_lower in name_lower or query_lower in dept_lower:
+                    # Определяем приоритет: название важнее отдела
+                    priority = 1 if query_lower in name_lower else 2
+                    filtered_results.append((priority, row))
+            
+            # Сортируем по приоритету и берем первые 20
+            filtered_results.sort(key=lambda x: (x[0], x[1][1]))  # по приоритету, потом по имени
+            results = [row for _, row in filtered_results[:20]]
+        conn.close()
+        
+        if results:
+            formatted_results = []
+            for code, name, dept, phones in results:
+                # Основная информация
+                store_info = [f"🏪 *{name}*"]
+                
+                # Код магазина
+                if code:
+                    store_info.append(f"🏷️ Код: {code}")
+                
+                # Отдел (это 3-я колонка по которой ищем)
+                if dept:
+                    store_info.append(f"📍 Отдел: {dept}")
+                
+                # Телефоны
+                if phones:
+                    store_info.append(f"📞 Телефоны: {phones}")
+                else:
+                    store_info.append(f"📞 Телефоны: Не указаны")
+                
+                formatted_results.append("\n".join(store_info))
+            
+            logger.info(f"Найдено {len(formatted_results)} магазинов по запросу: '{query}'")
+            return formatted_results
+        else:
+            logger.info(f"Магазины не найдены по запросу: '{query}'")
+            return [f"❌ По запросу '{query}' магазины не найдены"]
                 
     except Exception as e:
-        logger.error(f"Ошибка при поиске магазинов: {e}")
+        logger.error(f"Ошибка при поиске магазинов в БД: {e}")
         import traceback
         logger.error(f"Детали ошибки: {traceback.format_exc()}")
         return ["❌ Произошла ошибка при поиске магазинов"]
@@ -211,7 +201,7 @@ async def search_in_stores(query: str) -> list:
 
 async def search_in_skobyanka(query: str) -> list:
     """
-    Поиск в базе скобяных изделий
+    Поиск в базе скобяных изделий (SQLite)
     
     Args:
         query: Поисковый запрос
@@ -220,92 +210,79 @@ async def search_in_skobyanka(query: str) -> list:
         Список строк с результатами поиска
     """
     try:
-        config = load_config()
-        if not config:
-            logger.error("Невозможно загрузить конфигурацию для поиска скобянки")
-            return ["❌ Ошибка при загрузке конфигурации"]
-            
-        # Использовать имя ключа из конфигурации
-        excel_file = config.get('skobyanka_table')
-        if not excel_file or not os.path.exists(excel_file):
-            # Пробуем использовать абсолютный путь как запасной вариант
-            excel_file = "C:\\Users\\PluxuryPC\\PycharmProjects\\PythonProject5\\data\\skobyanka.xlsx"
-            if not os.path.exists(excel_file):
-                logger.error(f"Файл скобянки не найден: {excel_file}")
-                return ["❌ Файл с базой данных не найден"]
-            
-        # Читаем Excel файл
-        df = pd.read_excel(excel_file)
-        logger.info(f"Загружена таблица скобянки. Количество строк: {len(df)}")
-        logger.info(f"Колонки в таблице: {df.columns.tolist()}")
+        # Путь к базе данных
+        db_path = "data/excel_data.db"
+        if not os.path.exists(db_path):
+            logger.error(f"База данных {db_path} не найдена")
+            return ["❌ База данных скобяных изделий не найдена"]
         
-        # Если запрос пустой, возвращаем первые 15 строк
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Получаем все данные из БД
+        cursor.execute("""
+            SELECT article_code, name, quantity_kg
+            FROM skobyanka_products 
+            ORDER BY name
+        """)
+        
+        all_results = cursor.fetchall()
+        
+        # Если запрос пустой, возвращаем первые 15 товаров
         if not query.strip():
-            results = []
-            for _, row in df.head(15).iterrows():
-                result_parts = []
-                
-                # Определяем основное название/артикул
-                name_column = next((col for col in ['Наименование', 'Товар', 'Артикул'] 
-                                    if col in df.columns), df.columns[0])
-                result_parts.append(f"🔧 *{row[name_column]}*")
-                
-                # Добавляем остальные поля
-                for col in df.columns:
-                    if col != name_column:
-                        value = row[col]
-                        if pd.notna(value):  # Проверяем, что значение не NaN
-                            # Форматируем числовое значение
-                            formatted_value = format_numeric_value(value)
-                            result_parts.append(f"• {col}: {formatted_value}")
-                
-                results.append("\n".join(result_parts))
-            return results
-
-        # Удаляем пробелы из запроса и приводим к нижнему регистру
-        query = query.lower().strip()
-        logger.info(f"Поисковый запрос для скобянки: {query}")
-
-        # Поиск по всем колонкам
-        matches = df.apply(
-            lambda row: any(
-                str(value).lower().find(query) != -1 
-                for value in row if pd.notna(value)
-            ), 
-            axis=1
-        )
-        
-        results_df = df[matches]
-        logger.info(f"Найдено совпадений: {len(results_df)}")
-        
-        if not results_df.empty:
-            # Форматируем совпадения
-            results = []
-            for _, row in results_df.iterrows():
-                result_parts = []
-                
-                # Определяем основное название/артикул
-                name_column = next((col for col in ['Наименование', 'Товар', 'Артикул'] 
-                                    if col in df.columns), df.columns[0])
-                result_parts.append(f"🔧 *{row[name_column]}*")
-                
-                # Добавляем остальные поля
-                for col in df.columns:
-                    if col != name_column:
-                        value = row[col]
-                        if pd.notna(value):  # Проверяем, что значение не NaN
-                            # Форматируем числовое значение
-                            formatted_value = format_numeric_value(value)
-                            result_parts.append(f"• {col}: {formatted_value}")
-                
-                results.append("\n".join(result_parts))
-            
-            return results[:10]  # Ограничиваем до 10 результатов
+            results = all_results[:15]
         else:
-            return []
+            # Фильтруем результаты в Python (поиск по артикулу и названию)
+            query_lower = query.lower()
+            filtered_results = []
+            
+            for row in all_results:
+                article, name, quantity = row
+                article_lower = (article or "").lower()
+                name_lower = (name or "").lower()
+                
+                # Проверяем вхождение подстроки в артикул или название
+                if query_lower in article_lower or query_lower in name_lower:
+                    # Определяем приоритет: артикул важнее названия
+                    priority = 1 if query_lower in article_lower else 2
+                    filtered_results.append((priority, row))
+            
+            # Сортируем по приоритету и берем первые 20
+            filtered_results.sort(key=lambda x: (x[0], x[1][1]))  # по приоритету, потом по названию
+            results = [row for _, row in filtered_results[:20]]
+        
+        conn.close()
+        
+        if results:
+            formatted_results = []
+            for article, name, quantity in results:
+                # Основная информация
+                product_info = [f"🔧 *{name}*"]
+                
+                # Артикул
+                if article:
+                    product_info.append(f"🏷️ Артикул: {article}")
+                
+                # Количество в кг
+                if quantity is not None:
+                    if quantity > 0:
+                        product_info.append(f"📦 В наличии: {format_numeric_value(quantity)} кг")
+                    else:
+                        product_info.append(f"❌ Нет в наличии")
+                else:
+                    product_info.append(f"❓ Количество не указано")
+                
+                formatted_results.append("\n".join(product_info))
+            
+            logger.info(f"Найдено {len(formatted_results)} товаров скобянки по запросу: '{query}'")
+            return formatted_results
+        else:
+            logger.info(f"Товары скобянки не найдены по запросу: '{query}'")
+            return [f"❌ По запросу '{query}' товары скобянки не найдены"]
                 
     except Exception as e:
-        logger.error(f"Ошибка при поиске скобянки: {e}")
+        logger.error(f"Ошибка при поиске скобянки в БД: {e}")
         import traceback
         logger.error(f"Детали ошибки: {traceback.format_exc()}")
-        return ["❌ Произошла ошибка при поиске"]
+        return ["❌ Произошла ошибка при поиске скобянки"]

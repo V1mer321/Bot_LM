@@ -252,16 +252,20 @@ class ConfigManager:
         Returns:
             True если пользователь разрешен, иначе False
         """
-        config = self.load_config()
-        if not config:
-            return False
-            
-        whitelist = config.get('whitelist', [])
+        # ЗАКОММЕНТИРОВАНО: Проверка доступа отключена - все пользователи могут использовать бота
+        # config = self.load_config()
+        # if not config:
+        #     return False
+        #     
+        # whitelist = config.get('whitelist', [])
+        # 
+        # # Проверяем также, является ли пользователь администратором
+        # admin_ids = config.get('admin_ids', [])
+        # 
+        # return user_id in whitelist or user_id in admin_ids
         
-        # Проверяем также, является ли пользователь администратором
-        admin_ids = config.get('admin_ids', [])
-        
-        return user_id in whitelist or user_id in admin_ids
+        # Разрешаем доступ всем пользователям
+        return True
     
     def is_admin(self, user_id: int) -> bool:
         """
@@ -483,7 +487,11 @@ def load_config(encrypted_file=None):
 
 def is_allowed_user(user_id):
     """Проверяет, есть ли пользователь в белом списке"""
-    return _get_config_manager().is_allowed_user(user_id)
+    # ЗАКОММЕНТИРОВАНО: Проверка доступа отключена - все пользователи могут использовать бота
+    # return _get_config_manager().is_allowed_user(user_id)
+    
+    # Разрешаем доступ всем пользователям
+    return True
 
 
 def is_admin(user_id):

@@ -53,7 +53,10 @@ from toolbot.handlers.admin import (admin_panel_handler, user_management_handler
                                   errors_button_handler, suggestions_button_handler,
                                   back_to_feedback_handler, add_admin_handler,
                                   search_statistics_handler, detailed_search_stats_handler,
-                                  recent_complaints_handler)
+                                  recent_complaints_handler, user_activity_handler,
+                                  active_users_handler, all_users_handler,
+                                  search_user_handler, activity_stats_handler,
+                                  update_databases_handler)
 from toolbot.handlers.contacts import (contacts_handler, stores_handler, maps_handler,
                                      skobyanka_handler, back_to_contacts_handler)
 # Используем РЕАЛЬНЫЙ photo_handler который работает с unified_products.db
@@ -111,8 +114,12 @@ def initialize_models():
             gpu_name = torch.cuda.get_device_name(0)
             gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             logger.info(f"✅ Обнаружен GPU: {gpu_name} ({gpu_memory:.2f} ГБ)")
+            logger.info("🚀 ML-модели будут работать с GPU ускорением!")
         else:
             logger.info("⚠️ GPU не обнаружен. Будет использован CPU для вычислений.")
+            logger.info("💡 Для ускорения установите CUDA версию PyTorch:")
+            logger.info("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118")
+            logger.info("   Или запустите: python check_gpu.py для диагностики")
         
         # Проверяем доступность ONNX Runtime
         onnx_available = check_onnx_available()
@@ -167,11 +174,19 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^👥 Управление пользователями$"), user_management_handler))
         application.add_handler(MessageHandler(filters.Regex("^💬 Обратная связь$"), feedback_management_handler))
         application.add_handler(MessageHandler(filters.Regex("^📊 Статистика поиска$"), search_statistics_handler))
+        application.add_handler(MessageHandler(filters.Regex("^👀 Активность пользователей$"), user_activity_handler))
         application.add_handler(MessageHandler(filters.Regex("^👑 Добавить администратора$"), add_admin_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🔄 Обновить базы$"), update_databases_handler))
         application.add_handler(MessageHandler(filters.Regex("^📋 Список пользователей$"), list_users_handler))
         application.add_handler(MessageHandler(filters.Regex("^➕ Добавить пользователя$"), add_user_handler))
         application.add_handler(MessageHandler(filters.Regex("^➖ Удалить пользователя$"), remove_user_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в админ-панель$"), back_to_admin_panel_handler))
+        
+        # Кнопки раздела активности пользователей
+        application.add_handler(MessageHandler(filters.Regex("^📈 Активные пользователи$"), active_users_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📋 Все пользователи$"), all_users_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🔍 Поиск по ID$"), search_user_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📊 Общая статистика$"), activity_stats_handler))
         
         # Кнопки раздела статистики поиска
         application.add_handler(MessageHandler(filters.Regex("^📋 Детальная статистика$"), detailed_search_stats_handler))
@@ -236,15 +251,17 @@ def check_bot_health():
             return False
         
         # Проверка подключения к Redis, если используется
-        try:
-            import redis
-            redis_host = os.environ.get("REDIS_HOST", "localhost") 
-            redis_port = int(os.environ.get("REDIS_PORT", 6379))
-            r = redis.Redis(host=redis_host, port=redis_port)
-            r.ping()
-            logger.debug("Соединение с Redis успешно")
-        except Exception as e:
-            logger.warning(f"Соединение с Redis недоступно: {e}")
+        if os.environ.get("ENABLE_REDIS", "false").lower() == "true":
+            try:
+                import redis
+                redis_host = os.environ.get("REDIS_HOST", "localhost") 
+                redis_port = int(os.environ.get("REDIS_PORT", 6379))
+                r = redis.Redis(host=redis_host, port=redis_port)
+                r.ping()
+                logger.debug("Соединение с Redis успешно")
+            except Exception as e:
+                logger.warning(f"Соединение с Redis недоступно: {e}")
+        # Redis отключен - работаем без кеширования
         
         return True
     except Exception as e:

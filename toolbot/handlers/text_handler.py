@@ -22,6 +22,14 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     user_id = update.effective_user.id
     text = update.message.text
+    username = update.effective_user.username or "пользователь"
+    
+    # Логируем текстовое сообщение от пользователя (кроме чувствительных данных)
+    analytics = context.bot_data.get('analytics')
+    if analytics:
+        # Логируем только первые 50 символов для безопасности
+        text_preview = text[:50] + "..." if len(text) > 50 else text
+        analytics.log_user_activity(user_id, "text_message", f"@{username}: {text_preview}")
     
     # Сначала пытаемся обработать административные запросы (ПЕРЕД проверкой доступа)
     # Это позволяет админам добавлять пользователей

@@ -213,6 +213,12 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     Обработчик для обработки фотографий с обнаружением нескольких инструментов
     """
     user_id = update.effective_user.id
+    username = update.effective_user.username or "пользователь"
+    
+    # Логируем получение фото от пользователя
+    analytics = context.bot_data.get('analytics')
+    if analytics:
+        analytics.log_user_activity(user_id, "photo_received", f"Пользователь @{username} отправил фото для поиска")
     
     if not is_allowed_user(user_id):
         from toolbot.handlers.common import show_error_message

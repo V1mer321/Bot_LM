@@ -50,6 +50,54 @@ def setup_logging(log_file="bot.log", console_level=logging.INFO, file_level=log
     return root_logger
 
 
+def check_gpu_status():
+    """Проверяет и выводит информацию о GPU"""
+    try:
+        import torch
+        
+        print("=" * 60)
+        print("🔍 ПРОВЕРКА GPU СТАТУСА")
+        print("=" * 60)
+        
+        print(f"📦 PyTorch версия: {torch.__version__}")
+        
+        cuda_available = torch.cuda.is_available()
+        print(f"⚡ CUDA доступен: {'✅ ДА' if cuda_available else '❌ НЕТ'}")
+        
+        if cuda_available:
+            gpu_count = torch.cuda.device_count()
+            print(f"🎮 Количество GPU: {gpu_count}")
+            
+            for i in range(gpu_count):
+                gpu_name = torch.cuda.get_device_name(i)
+                props = torch.cuda.get_device_properties(i)
+                memory_gb = props.total_memory / (1024**3)
+                print(f"  GPU {i}: {gpu_name} ({memory_gb:.2f} ГБ)")
+            
+            current_device = torch.cuda.current_device()
+            print(f"🎯 Текущее устройство: GPU {current_device}")
+            
+            # Тест создания тензора
+            try:
+                test_tensor = torch.tensor([1.0, 2.0, 3.0]).cuda()
+                print("✅ Тест создания тензора на GPU: УСПЕШНО")
+                print("🚀 Бот будет работать с GPU ускорением!")
+            except Exception as e:
+                print(f"❌ Тест создания тензора на GPU: ОШИБКА - {e}")
+                cuda_available = False
+        else:
+            print("💡 Для активации GPU выполните:")
+            print("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118")
+            print("⚠️  Бот будет работать на CPU (медленнее)")
+        
+        print("=" * 60)
+        return cuda_available
+        
+    except ImportError:
+        print("❌ PyTorch не установлен!")
+        return False
+
+
 def main():
     # Разбор аргументов командной строки
     parser = argparse.ArgumentParser(description="Запуск телеграм-бота ToolBot")
@@ -79,12 +127,23 @@ def main():
         action="store_true", 
         help="Отключить сбор аналитики"
     )
+    parser.add_argument(
+        "--skip-gpu-check", 
+        action="store_true", 
+        help="Пропустить проверку GPU"
+    )
     
     args = parser.parse_args()
     
     # Настраиваем логирование на основе параметров
     console_level = logging.DEBUG if args.debug else logging.INFO
     logger = setup_logging(args.log, console_level=console_level)
+    
+    # Проверка GPU статуса (если не отключена)
+    if not args.skip_gpu_check:
+        gpu_available = check_gpu_status()
+        if not args.debug:  # Пауза только если не debug режим
+            input("Нажмите Enter для продолжения...")
     
     # Устанавливаем переменные окружения для конфигурации
     # os.environ['CONFIG_PATH'] = 'config.py'  # Убираем принудительное использование config.py
