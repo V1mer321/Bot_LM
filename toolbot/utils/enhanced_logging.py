@@ -370,9 +370,9 @@ class LoggingManager:
             if record.exc_info:
                 exc_type, exc_value, exc_traceback = record.exc_info
                 log_data["exception"] = {
-                    "type": exc_type.__name__,
-                    "message": str(exc_value),
-                    "traceback": traceback.format_exception(exc_type, exc_value, exc_traceback)
+                    "type": exc_type.__name__ if exc_type else "Unknown",
+                    "message": str(exc_value) if exc_value else "Unknown",
+                    "traceback": traceback.format_exception(exc_type, exc_value, exc_traceback) if exc_type else []
                 }
             
             # Добавляем дополнительные поля из kwargs

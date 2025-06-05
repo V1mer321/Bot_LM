@@ -1119,11 +1119,11 @@ async def system_dashboard_handler(update: Update, context: ContextTypes.DEFAULT
         dashboard_data = monitoring.get_dashboard_data()
         
         # Формируем сообщение
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        current_time = datetime.now()
         uptime_hours = dashboard_data['uptime_seconds'] // 3600
         uptime_minutes = (dashboard_data['uptime_seconds'] % 3600) // 60
         
-        message = f"*📊 Системный дашборд* `{timestamp}`\n\n"
+        message = f"*📊 Системный дашборд* `{current_time.hour:02d}:{current_time.minute:02d}:{current_time.second:02d}`\n\n"
         message += f"⏱ *Время работы:* {uptime_hours}ч {uptime_minutes}м\n\n"
         
         # Системные метрики
@@ -1249,8 +1249,8 @@ async def active_users_realtime_handler(update: Update, context: ContextTypes.DE
         activity_stats = monitoring.user_activity_monitor.get_activity_statistics()
         queue_status = monitoring.user_activity_monitor.get_request_queue_status()
         
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        message = f"*👥 Активные пользователи* `{timestamp}`\n\n"
+        current_time = datetime.now()
+        message = f"*👥 Активные пользователи* `{current_time.hour:02d}:{current_time.minute:02d}:{current_time.second:02d}`\n\n"
         
         # Общая статистика
         message += f"🟢 *Сейчас онлайн:* {len(active_users)} пользователей\n"
@@ -1341,8 +1341,12 @@ async def performance_monitoring_handler(update: Update, context: ContextTypes.D
         performance_stats = monitoring.performance_monitor.get_performance_stats()
         system_metrics = monitoring.system_monitor.get_current_metrics()
         
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        message = f"*⚡ Производительность* `{timestamp}`\n\n"
+        current_time = datetime.now()
+        message = f"*⚡ Производительность* `{current_time.hour:02d}:{current_time.minute:02d}:{current_time.second:02d}`\n\n"
+        
+        # Инициализируем переменные значениями по умолчанию
+        avg_time = 0
+        success_rate = 100
         
         if performance_stats.get('no_data'):
             message += "📊 *Нет данных о производительности*\n\n"
@@ -1456,4 +1460,172 @@ async def back_to_monitoring_handler(update: Update, context: ContextTypes.DEFAU
     """
     Возврат в главное меню мониторинга
     """
-    await realtime_monitoring_handler(update, context) 
+    await realtime_monitoring_handler(update, context)
+
+
+async def metrics_history_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает историю метрик системы
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from toolbot.services.monitoring import monitoring
+        
+        # Получаем историю метрик за последний час
+        metrics_history = monitoring.system_monitor.get_metrics_history(60)
+        
+        if not metrics_history:
+            await update.message.reply_text(
+                "📈 *История метрик*\n\n"
+                "Данные недоступны. Система мониторинга запущена недавно.\n"
+                "История будет накапливаться в течение работы бота.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Анализируем тренды
+        cpu_values = [m['metrics']['cpu']['usage_percent'] for m in metrics_history if 'cpu' in m['metrics']]
+        memory_values = [m['metrics']['memory']['usage_percent'] for m in metrics_history if 'memory' in m['metrics']]
+        
+        message = "*📈 История метрик (последний час)*\n\n"
+        
+        if cpu_values:
+            cpu_avg = sum(cpu_values) / len(cpu_values)
+            cpu_max = max(cpu_values)
+            cpu_min = min(cpu_values)
+            message += f"**💻 CPU:**\n"
+            message += f"• Среднее: {cpu_avg:.1f}%%\n"
+            message += f"• Максимум: {cpu_max:.1f}%%\n"
+            message += f"• Минимум: {cpu_min:.1f}%%\n\n"
+        
+        if memory_values:
+            mem_avg = sum(memory_values) / len(memory_values)
+            mem_max = max(memory_values)
+            mem_min = min(memory_values)
+            message += f"**💾 RAM:**\n"
+            message += f"• Среднее: {mem_avg:.1f}%%\n"
+            message += f"• Максимум: {mem_max:.1f}%%\n"
+            message += f"• Минимум: {mem_min:.1f}%%\n\n"
+        
+        message += f"📊 Всего записей: {len(metrics_history)}\n"
+        message += f"⏰ Период: последние {len(metrics_history) * 5} минут"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Ошибка в истории метрик: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении истории метрик:\n{str(e)}"
+        )
+
+
+async def alerts_notifications_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает все алерты и уведомления
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from toolbot.services.monitoring import monitoring
+        
+        # Получаем текущие данные для проверки алертов
+        dashboard_data = monitoring.get_dashboard_data()
+        alerts = dashboard_data.get('alerts', [])
+        
+        message = "*🚨 Алерты и уведомления*\n\n"
+        
+        if alerts:
+            message += f"**Активные алерты ({len(alerts)}):**\n\n"
+            
+            for i, alert in enumerate(alerts, 1):
+                alert_type = alert['type']
+                alert_message = alert['message']
+                timestamp = alert['timestamp'][:16]  # Только дата и время
+                
+                emoji = "🔥" if alert_type == 'critical' else "⚠️"
+                message += f"{emoji} **{i}.** {alert_message}\n"
+                message += f"   ⏰ {timestamp}\n\n"
+        else:
+            message += "✅ **Активных алертов нет**\n\n"
+            message += "Система работает в штатном режиме."
+        
+        message += "\n**⚙️ Пороговые значения:**\n"
+        message += f"• CPU: > 90%%\n"
+        message += f"• RAM: > 85%%\n"
+        message += f"• GPU: > 95%%\n"
+        message += f"• Температура GPU: > 80°C\n"
+        message += f"• Время ответа: > 1000мс\n"
+        message += f"• Ошибки: > 10%%"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Ошибка в алертах: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении алертов:\n{str(e)}"
+        )
+
+
+async def monitoring_settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Настройки системы мониторинга
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from toolbot.services.monitoring import monitoring
+        
+        # Получаем данные дашборда для uptime
+        dashboard_data = monitoring.get_dashboard_data()
+        thresholds = monitoring.alert_thresholds
+        
+        message = "*⚙️ Настройки мониторинга*\n\n"
+        message += "**🔧 Текущие пороговые значения:**\n\n"
+        
+        message += f"💻 **CPU Usage:** {thresholds['cpu_usage']}%%\n"
+        message += f"💾 **Memory Usage:** {thresholds['memory_usage']}%%\n"
+        message += f"🎮 **GPU Usage:** {thresholds['gpu_usage']}%%\n"
+        message += f"🌡️ **GPU Temperature:** {thresholds['gpu_temperature']}°C\n"
+        message += f"⏱️ **Response Time:** {thresholds['response_time_ms']}мс\n"
+        message += f"❌ **Error Rate:** {thresholds['error_rate_percent']}%%\n\n"
+        
+        message += "**📊 Параметры сбора данных:**\n"
+        message += f"• Интервал сбора: 5 секунд\n"
+        message += f"• История: 24 часа (1440 записей)\n"
+        message += f"• Лимит активных пользователей: 30 минут\n"
+        message += f"• Лимит производительности: 1000 записей\n\n"
+        
+        message += "**🔄 Статус мониторинга:**\n"
+        uptime = dashboard_data.get('uptime_seconds', 0)
+        uptime_hours = uptime // 3600
+        uptime_minutes = (uptime % 3600) // 60
+        message += f"• Работает: {uptime_hours}ч {uptime_minutes}м\n"
+        # Нужно импортировать для проверки доступности
+        try:
+            from toolbot.services.monitoring import GPU_AVAILABLE, TORCH_AVAILABLE
+        except ImportError:
+            GPU_AVAILABLE, TORCH_AVAILABLE = False, False
+            
+        message += f"• GPU мониторинг: {'✅ Активен' if GPU_AVAILABLE else '❌ Недоступен'}\n"
+        message += f"• PyTorch мониторинг: {'✅ Активен' if TORCH_AVAILABLE else '❌ Недоступен'}"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Ошибка в настройках мониторинга: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении настроек мониторинга:\n{str(e)}"
+        ) 

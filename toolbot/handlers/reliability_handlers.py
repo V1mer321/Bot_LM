@@ -64,7 +64,7 @@ async def error_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     for error_type, count in sorted_errors[:10]:  # Показываем топ-10 ошибок
         percentage = (count / total_errors) * 100
-        message += f"• {error_type}: {count} ({percentage:.1f}%)\n"
+        message += f"• {error_type}: {count} ({percentage:.1f}%%)\n"
     
     if len(sorted_errors) > 10:
         message += f"\n... и еще {len(sorted_errors) - 10} типов ошибок"

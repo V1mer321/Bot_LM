@@ -449,7 +449,7 @@ class ProgressIndicator:
         progress_bar = "🟩" * filled_blocks + "⬜️" * empty_blocks
         
         # Форматируем текст индикатора
-        text = f"<b>{self.operation_name}: {percent}%</b>\n\n{progress_bar}\n\n"
+        text = f"<b>{self.operation_name}: {percent}%%</b>\n\n{progress_bar}\n\n"
         
         # Добавляем дополнительный текст статуса, если есть
         if status_text:

@@ -450,7 +450,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     
                     result_message += f"🔹 Объект #{i+1}: {tool_type}\n"
                     result_message += f"  • Бренд: {brand}\n"
-                    result_message += f"  • Уверенность: {confidence:.1f}%\n"
+                    result_message += f"  • Уверенность: {confidence:.1f}%%\n"
                     
                     # Для каждого объекта добавляем топ результаты
                     if obj_result['results']:
@@ -511,7 +511,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 for i, (img_path, similarity) in enumerate(results[:5]):
                     file_name = os.path.basename(img_path)
                     similarity_percent = round(similarity * 100)
-                    result_message += f"{i+1}. {file_name} - Совпадение: {similarity_percent}%\n"
+                    result_message += f"{i+1}. {file_name} - Совпадение: {similarity_percent}%%\n"
                 
                 # Обновляем сообщение с результатами
                 await processing_message.edit_text(result_message)

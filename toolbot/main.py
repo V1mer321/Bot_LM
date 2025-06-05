@@ -58,7 +58,9 @@ from toolbot.handlers.admin import (admin_panel_handler, user_management_handler
                                   search_user_handler, activity_stats_handler,
                                   update_databases_handler, realtime_monitoring_handler,
                                   system_dashboard_handler, active_users_realtime_handler,
-                                  performance_monitoring_handler, back_to_monitoring_handler)
+                                  performance_monitoring_handler, back_to_monitoring_handler,
+                                  metrics_history_handler, alerts_notifications_handler,
+                                  monitoring_settings_handler)
 from toolbot.handlers.contacts import (contacts_handler, stores_handler, maps_handler,
                                      skobyanka_handler, back_to_contacts_handler)
 # Используем РЕАЛЬНЫЙ photo_handler который работает с unified_products.db
@@ -189,6 +191,9 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^📊 Дашборд системы$"), system_dashboard_handler))
         application.add_handler(MessageHandler(filters.Regex("^👥 Активные пользователи$"), active_users_realtime_handler))
         application.add_handler(MessageHandler(filters.Regex("^⚡ Производительность$"), performance_monitoring_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🚨 Алерты и уведомления$"), alerts_notifications_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📈 История метрик$"), metrics_history_handler))
+        application.add_handler(MessageHandler(filters.Regex("^⚙️ Настройки мониторинга$"), monitoring_settings_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в админ-панель$"), back_to_admin_panel_handler))
         
         # Кнопки раздела активности пользователей

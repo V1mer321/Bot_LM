@@ -430,12 +430,12 @@ class RecoveryManager:
             # Проверка памяти
             memory = psutil.virtual_memory()
             if memory.percent > 90:
-                logger.warning(f"Критический уровень использования памяти: {memory.percent}%")
+                logger.warning(f"Критический уровень использования памяти: {memory.percent}%%")
             
             # Проверка CPU
             cpu_percent = psutil.cpu_percent(interval=1)
             if cpu_percent > 90:
-                logger.warning(f"Критический уровень использования CPU: {cpu_percent}%")
+                logger.warning(f"Критический уровень использования CPU: {cpu_percent}%%")
             
             # Проверка диска (используем правильный путь для Windows)
             import platform
@@ -446,7 +446,7 @@ class RecoveryManager:
             
             disk = psutil.disk_usage(disk_path)
             if disk.percent > 90:
-                logger.warning(f"Критический уровень использования диска: {disk.percent}%")
+                logger.warning(f"Критический уровень использования диска: {disk.percent}%%")
         except Exception as e:
             logger.error(f"Ошибка при проверке системных ресурсов: {e}")
     
