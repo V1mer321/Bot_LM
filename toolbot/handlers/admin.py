@@ -2,6 +2,7 @@
 Обработчики команд для административной панели телеграм-бота.
 """
 import logging
+from datetime import datetime
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -34,7 +35,7 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = [
         ["👥 Управление пользователями", "💬 Обратная связь"],
         ["📊 Статистика поиска", "👀 Активность пользователей"],
-        ["👑 Добавить администратора"],
+        ["🕒 Real-time мониторинг", "👑 Добавить администратора"],
         ["🔄 Обновить базы"],
         ["🔙 Назад в меню"]
     ]
@@ -47,6 +48,7 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         "• 💬 Обратная связь - просмотр ошибок и предложений\n"
         "• 📊 Статистика поиска - анализ эффективности поиска\n"
         "• 👀 Активность пользователей - мониторинг входов и действий\n"
+        "• 🕒 Real-time мониторинг - система в реальном времени\n"
         "• 👑 Добавить администратора - назначение нового админа\n"
         "• 🔄 Обновить базы - обновление баз данных\n\n"
         "💡 _Используйте кнопки для навигации_",
@@ -481,7 +483,8 @@ async def search_statistics_handler(update: Update, context: ContextTypes.DEFAUL
         message += f"• Всего поисков: {success_stats.get('total_searches', 0)}\n"
         message += f"• Успешных поисков: {success_stats.get('successful_searches', 0)}\n"
         message += f"• Пользователи сообщили о неудачах: {success_stats.get('user_reported_failures', 0)}\n"
-        message += f"• Процент успеха: {success_stats.get('success_rate_percent', 0)}%\n"
+        success_rate = success_stats.get('success_rate_percent', 0)
+        message += f"• Процент успеха: {success_rate}%%\n"
         message += f"• Средняя схожесть: {success_stats.get('average_similarity', 0):.3f}\n\n"
         
         # Статистика неудачных поисков
@@ -930,7 +933,7 @@ async def activity_stats_handler(update: Update, context: ContextTypes.DEFAULT_T
                 message += f"📸 *Поиск по фото:*\n"
                 message += f"   Всего поисков: {total_photo}\n"
                 message += f"   Успешных: {success_photo}\n"
-                message += f"   Успешность: {success_rate:.1f}%\n"
+                message += f"   Успешность: {success_rate:.1f}%%\n"
         
         await update.message.reply_text(
             message,
@@ -981,7 +984,7 @@ async def update_databases_handler(update: Update, context: ContextTypes.DEFAULT
         
         status_info = "📊 *Статус баз данных:*\n\n"
         
-        # Проверяем SQLite базу
+                # Проверяем SQLite базу
         if os.path.exists(db_path):
             try:
                 conn = sqlite3.connect(db_path)
@@ -991,10 +994,11 @@ async def update_databases_handler(update: Update, context: ContextTypes.DEFAULT
                 
                 file_size = os.path.getsize(db_path) / (1024 * 1024)  # МБ
                 mod_time = datetime.fromtimestamp(os.path.getmtime(db_path))
+                mod_time_str = mod_time.strftime('%d.%m.%Y %H:%M')
                 
                 status_info += f"✅ *SQLite база:* {count:,} товаров\n"
                 status_info += f"   Размер: {file_size:.1f} МБ\n"
-                status_info += f"   Обновлена: {mod_time.strftime('%d.%m.%Y %H:%M')}\n\n"
+                status_info += f"   Обновлена: {mod_time_str}\n\n"
                 
                 conn.close()
             except Exception as e:
@@ -1010,9 +1014,10 @@ async def update_databases_handler(update: Update, context: ContextTypes.DEFAULT
             with open(txt_path, 'r', encoding='utf-8') as f:
                 lines = sum(1 for _ in f) - 1  # минус заголовок
             
+            mod_time_str = mod_time.strftime('%d.%m.%Y %H:%M')
             status_info += f"✅ *TXT экспорт:* {lines:,} товаров\n"
             status_info += f"   Размер: {file_size:.1f} МБ\n"
-            status_info += f"   Обновлен: {mod_time.strftime('%d.%m.%Y %H:%M')}\n\n"
+            status_info += f"   Обновлен: {mod_time_str}\n\n"
         else:
             status_info += f"❌ *TXT экспорт:* Файл не найден\n\n"
         
@@ -1021,9 +1026,10 @@ async def update_databases_handler(update: Update, context: ContextTypes.DEFAULT
             file_size = os.path.getsize(csv_path) / (1024 * 1024)  # МБ
             mod_time = datetime.fromtimestamp(os.path.getmtime(csv_path))
             
+            mod_time_str = mod_time.strftime('%d.%m.%Y %H:%M')
             status_info += f"✅ *CSV экспорт:* доступен\n"
             status_info += f"   Размер: {file_size:.1f} МБ\n"
-            status_info += f"   Обновлен: {mod_time.strftime('%d.%m.%Y %H:%M')}\n\n"
+            status_info += f"   Обновлен: {mod_time_str}\n\n"
         else:
             status_info += f"❌ *CSV экспорт:* Файл не найден\n\n"
         
@@ -1059,4 +1065,395 @@ async def update_databases_handler(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text(
             "❌ Произошла ошибка при обновлении баз данных.\n"
             f"Детали: {str(e)}"
-        ) 
+        )
+
+
+async def realtime_monitoring_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Главное меню real-time мониторинга
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    keyboard = [
+        ["📊 Дашборд системы", "👥 Активные пользователи"],
+        ["⚡ Производительность", "🚨 Алерты и уведомления"],
+        ["📈 История метрик", "⚙️ Настройки мониторинга"],
+        ["🔙 Назад в админ-панель"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "*🕒 Real-time мониторинг*\n\n"
+        "Система мониторинга в реальном времени:\n\n"
+        "• 📊 Дашборд системы - текущие метрики CPU, GPU, RAM\n"
+        "• 👥 Активные пользователи - кто сейчас онлайн\n"
+        "• ⚡ Производительность - скорость обработки запросов\n"
+        "• 🚨 Алерты - критические состояния системы\n"
+        "• 📈 История метрик - графики за последние часы\n"
+        "• ⚙️ Настройки - пороговые значения алертов\n\n"
+        "💡 _Данные обновляются каждые 5 секунд_",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def system_dashboard_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает системный дашборд в реальном времени
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        # Импортируем мониторинг
+        from toolbot.services.monitoring import monitoring
+        
+        # Получаем данные дашборда
+        dashboard_data = monitoring.get_dashboard_data()
+        
+        # Формируем сообщение
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        uptime_hours = dashboard_data['uptime_seconds'] // 3600
+        uptime_minutes = (dashboard_data['uptime_seconds'] % 3600) // 60
+        
+        message = f"*📊 Системный дашборд* `{timestamp}`\n\n"
+        message += f"⏱ *Время работы:* {uptime_hours}ч {uptime_minutes}м\n\n"
+        
+        # Системные метрики
+        system = dashboard_data['system']
+        
+        # CPU
+        cpu = system.get('cpu', {})
+        cpu_usage = cpu.get('usage_percent', 0)
+        cpu_emoji = "🔥" if cpu_usage > 80 else "⚡" if cpu_usage > 50 else "✅"
+        message += f"{cpu_emoji} *CPU:* {cpu_usage:.1f}%%\n"
+        
+        if cpu.get('frequency_mhz'):
+            message += f"   Частота: {cpu['frequency_mhz']:.0f} MHz\n"
+        message += f"   Ядра: {cpu.get('cores_logical', '?')} логических\n\n"
+        
+        # Память
+        memory = system.get('memory', {})
+        mem_usage = memory.get('usage_percent', 0)
+        mem_emoji = "🔥" if mem_usage > 85 else "⚠️" if mem_usage > 70 else "✅"
+        message += f"{mem_emoji} *RAM:* {mem_usage:.1f}%%\n"
+        message += f"   Используется: {memory.get('used_gb', 0):.1f} / {memory.get('total_gb', 0):.1f} ГБ\n"
+        message += f"   Свободно: {memory.get('available_gb', 0):.1f} ГБ\n\n"
+        
+        # GPU (если доступно)
+        gpu = system.get('gpu')
+        if gpu:
+            gpu_usage = gpu.get('usage_percent', 0)
+            gpu_temp = gpu.get('temperature_c', 0)
+            gpu_mem_usage = gpu.get('memory_usage_percent', 0)
+            
+            gpu_emoji = "🔥" if gpu_temp > 80 or gpu_usage > 90 else "⚡" if gpu_usage > 70 else "✅"
+            message += f"{gpu_emoji} *GPU:* {gpu.get('name', 'Unknown')}\n"
+            message += f"   Загрузка: {gpu_usage:.1f}%%\n"
+            
+            if gpu_temp > 0:
+                message += f"   Температура: {gpu_temp}°C\n"
+                
+            if 'memory_total_mb' in gpu:
+                total_gb = gpu['memory_total_mb'] / 1024
+                used_gb = gpu.get('memory_allocated_mb', gpu.get('memory_used_mb', 0)) / 1024
+                message += f"   VRAM: {used_gb:.1f} / {total_gb:.1f} ГБ ({gpu_mem_usage:.1f}%%)\n"
+            message += "\n"
+        else:
+            message += "❌ *GPU:* Не доступен\n\n"
+        
+        # Диск
+        disk = system.get('disk', {})
+        disk_usage = disk.get('usage_percent', 0)
+        disk_emoji = "🔥" if disk_usage > 90 else "⚠️" if disk_usage > 80 else "✅"
+        message += f"{disk_emoji} *Диск:* {disk_usage:.1f}%%\n"
+        message += f"   Свободно: {disk.get('free_gb', 0):.1f} / {disk.get('total_gb', 0):.1f} ГБ\n\n"
+        
+        # Активность пользователей
+        activity = dashboard_data['activity']
+        message += f"👥 *Активные пользователи:* {activity['active_now']}\n"
+        message += f"📞 *Запросов за час:* {activity['requests_last_hour']}\n"
+        message += f"🆕 *Новых сегодня:* {activity['new_users_today']}\n\n"
+        
+        # Производительность
+        performance = dashboard_data['performance']
+        if not performance.get('no_data'):
+            avg_time = performance.get('avg_response_time_ms', 0)
+            success_rate = performance.get('success_rate_percent', 0)
+            
+            perf_emoji = "🔥" if avg_time > 1000 else "⚠️" if avg_time > 500 else "✅"
+            message += f"{perf_emoji} *Средний ответ:* {avg_time:.0f}мс\n"
+            message += f"✅ *Успешность:* {success_rate:.1f}%%\n"
+            message += f"🔢 *Всего запросов:* {performance.get('total_requests', 0)}\n\n"
+        
+        # Алерты
+        alerts = dashboard_data.get('alerts', [])
+        if alerts:
+            message += "🚨 *Активные алерты:*\n"
+            for alert in alerts[:3]:  # Показываем только первые 3
+                emoji = "🔥" if alert['type'] == 'critical' else "⚠️"
+                message += f"{emoji} {alert['message']}\n"
+            if len(alerts) > 3:
+                message += f"... и еще {len(alerts) - 3} алертов\n"
+        else:
+            message += "✅ *Алерты:* Все в норме\n"
+        
+        # Кнопки для обновления
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Обновить", callback_data="refresh_dashboard")],
+            [InlineKeyboardButton("📈 История", callback_data="metrics_history"),
+             InlineKeyboardButton("🚨 Все алерты", callback_data="all_alerts")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_monitoring")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка в системном дашборде: {e}")
+        import traceback
+        logger.error(f"Полная ошибка: {traceback.format_exc()}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении данных мониторинга:\n{str(e)}"
+        )
+
+
+async def active_users_realtime_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает активных пользователей в реальном времени
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from toolbot.services.monitoring import monitoring
+        
+        # Получаем активных пользователей
+        active_users = monitoring.user_activity_monitor.get_active_users(30)
+        activity_stats = monitoring.user_activity_monitor.get_activity_statistics()
+        queue_status = monitoring.user_activity_monitor.get_request_queue_status()
+        
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        message = f"*👥 Активные пользователи* `{timestamp}`\n\n"
+        
+        # Общая статистика
+        message += f"🟢 *Сейчас онлайн:* {len(active_users)} пользователей\n"
+        message += f"📊 *Запросов за 5 мин:* {queue_status['recent_5min']}\n"
+        message += f"⚡ *Средняя нагрузка:* {queue_status['avg_per_minute']:.1f} req/min\n\n"
+        
+        if active_users:
+            message += "*🔥 Активные пользователи (последние 30 мин):*\n\n"
+            
+            # Сортируем по времени последней активности
+            sorted_users = sorted(
+                active_users.items(),
+                key=lambda x: x[1]['minutes_ago']
+            )
+            
+            for user_id_active, user_data in sorted_users[:10]:  # Показываем только первые 10
+                minutes_ago = user_data['minutes_ago']
+                activity_type = user_data['activity_type']
+                
+                # Эмодзи в зависимости от типа активности
+                activity_emoji = {
+                    'photo_search': '📸',
+                    'text_search': '🔍',
+                    'catalog_browse': '📋',
+                    'admin_panel': '⚙️',
+                    'start': '🚀',
+                    'help': '❓'
+                }.get(activity_type, '💬')
+                
+                # Время активности
+                if minutes_ago == 0:
+                    time_str = "сейчас"
+                elif minutes_ago < 5:
+                    time_str = f"{minutes_ago}м назад"
+                else:
+                    time_str = f"{minutes_ago}м назад"
+                
+                message += f"{activity_emoji} `{user_id_active}` - {time_str}\n"
+                message += f"   ↳ {activity_type}\n"
+            
+            if len(active_users) > 10:
+                message += f"\n... и еще {len(active_users) - 10} пользователей\n"
+        else:
+            message += "😴 *Сейчас никого нет онлайн*\n\n"
+        
+        # Статистика за сегодня
+        message += f"\n📅 *Статистика за сегодня:*\n"
+        message += f"• Всего запросов: {activity_stats['requests_today']}\n"
+        message += f"• Новых пользователей: {activity_stats['new_users_today']}\n"
+        message += f"• Зарегистрировано всего: {activity_stats['total_registered_users']}\n"
+        
+        # Кнопки
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Обновить", callback_data="refresh_active_users")],
+            [InlineKeyboardButton("📊 Детальная статистика", callback_data="detailed_activity_stats")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_monitoring")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка в мониторинге активных пользователей: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении данных о пользователях:\n{str(e)}"
+        )
+
+
+async def performance_monitoring_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает метрики производительности в реальном времени
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from toolbot.services.monitoring import monitoring
+        
+        performance_stats = monitoring.performance_monitor.get_performance_stats()
+        system_metrics = monitoring.system_monitor.get_current_metrics()
+        
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        message = f"*⚡ Производительность* `{timestamp}`\n\n"
+        
+        if performance_stats.get('no_data'):
+            message += "📊 *Нет данных о производительности*\n\n"
+            message += "Данные будут доступны после первых запросов к боту."
+        else:
+            # Общие метрики производительности
+            avg_time = performance_stats.get('avg_response_time_ms', 0)
+            success_rate = performance_stats.get('success_rate_percent', 0)
+            total_requests = performance_stats.get('total_requests', 0)
+            total_errors = performance_stats.get('total_errors', 0)
+            
+            # Эмодзи в зависимости от производительности
+            time_emoji = "🔥" if avg_time > 1000 else "⚠️" if avg_time > 500 else "✅"
+            success_emoji = "🔥" if success_rate < 90 else "⚠️" if success_rate < 95 else "✅"
+            
+            message += f"{time_emoji} *Среднее время ответа:* {avg_time:.1f}мс\n"
+            message += f"{success_emoji} *Успешность:* {success_rate:.1f}%%\n"
+            message += f"📊 *Всего запросов:* {total_requests:,}\n"
+            message += f"❌ *Ошибок:* {total_errors}\n\n"
+            
+            # Производительность моделей
+            model_stats = performance_stats.get('model_stats', {})
+            if model_stats:
+                message += "*🧠 Производительность моделей:*\n"
+                for model_name, stats in model_stats.items():
+                    avg_inference = stats['avg_inference_ms']
+                    total_runs = stats['total_runs']
+                    
+                    model_emoji = "🚀" if avg_inference < 100 else "⚡" if avg_inference < 300 else "⚠️"
+                    message += f"{model_emoji} {model_name}:\n"
+                    message += f"   ↳ {avg_inference:.1f}мс (запусков: {total_runs})\n"
+                message += "\n"
+        
+        # GPU метрики (если доступно)
+        gpu_data = system_metrics.get('gpu')
+        if gpu_data:
+            message += "*🎮 GPU Производительность:*\n"
+            message += f"• Модель: {gpu_data.get('name', 'Unknown')}\n"
+            
+            if 'usage_percent' in gpu_data:
+                usage = gpu_data['usage_percent']
+                usage_emoji = "🔥" if usage > 90 else "⚡" if usage > 70 else "✅"
+                message += f"• Загрузка: {usage_emoji} {usage:.1f}%%\n"
+                
+            if 'temperature_c' in gpu_data:
+                temp = gpu_data['temperature_c']
+                temp_emoji = "🔥" if temp > 80 else "⚠️" if temp > 70 else "✅"
+                message += f"• Температура: {temp_emoji} {temp}°C\n"
+                
+            if 'memory_usage_percent' in gpu_data:
+                mem_usage = gpu_data['memory_usage_percent']
+                mem_emoji = "🔥" if mem_usage > 90 else "⚠️" if mem_usage > 80 else "✅"
+                message += f"• VRAM: {mem_emoji} {mem_usage:.1f}%%\n"
+            
+            message += "\n"
+        
+        # Тренды производительности (если есть история)
+        message += "*📈 Статус системы:*\n"
+        
+        # CPU
+        cpu_usage = system_metrics.get('cpu', {}).get('usage_percent', 0)
+        cpu_emoji = "🔥" if cpu_usage > 80 else "⚡" if cpu_usage > 50 else "✅"
+        message += f"{cpu_emoji} CPU: {cpu_usage:.1f}%%\n"
+        
+        # Память
+        mem_usage = system_metrics.get('memory', {}).get('usage_percent', 0)
+        mem_emoji = "🔥" if mem_usage > 85 else "⚠️" if mem_usage > 70 else "✅"
+        message += f"{mem_emoji} RAM: {mem_usage:.1f}%%\n"
+        
+        # Рекомендации по оптимизации
+        recommendations = []
+        
+        if avg_time > 1000:
+            recommendations.append("🔧 Время ответа высокое - проверьте загрузку GPU")
+        if success_rate < 95:
+            recommendations.append("⚠️ Низкая успешность - проверьте логи ошибок")
+        if cpu_usage > 80:
+            recommendations.append("🔥 Высокая загрузка CPU - возможно требуется масштабирование")
+        if mem_usage > 85:
+            recommendations.append("💾 Высокое потребление RAM - проверьте утечки памяти")
+            
+        if recommendations:
+            message += "\n*💡 Рекомендации:*\n"
+            for rec in recommendations:
+                message += f"• {rec}\n"
+        
+        # Кнопки
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Обновить", callback_data="refresh_performance")],
+            [InlineKeyboardButton("📊 Детальные метрики", callback_data="detailed_metrics")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_monitoring")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка в мониторинге производительности: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при получении метрик производительности:\n{str(e)}"
+        )
+
+
+async def back_to_monitoring_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Возврат в главное меню мониторинга
+    """
+    await realtime_monitoring_handler(update, context) 

@@ -56,7 +56,9 @@ from toolbot.handlers.admin import (admin_panel_handler, user_management_handler
                                   recent_complaints_handler, user_activity_handler,
                                   active_users_handler, all_users_handler,
                                   search_user_handler, activity_stats_handler,
-                                  update_databases_handler)
+                                  update_databases_handler, realtime_monitoring_handler,
+                                  system_dashboard_handler, active_users_realtime_handler,
+                                  performance_monitoring_handler, back_to_monitoring_handler)
 from toolbot.handlers.contacts import (contacts_handler, stores_handler, maps_handler,
                                      skobyanka_handler, back_to_contacts_handler)
 # Используем РЕАЛЬНЫЙ photo_handler который работает с unified_products.db
@@ -177,9 +179,16 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^👀 Активность пользователей$"), user_activity_handler))
         application.add_handler(MessageHandler(filters.Regex("^👑 Добавить администратора$"), add_admin_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔄 Обновить базы$"), update_databases_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🕒 Real-time мониторинг$"), realtime_monitoring_handler))
         application.add_handler(MessageHandler(filters.Regex("^📋 Список пользователей$"), list_users_handler))
         application.add_handler(MessageHandler(filters.Regex("^➕ Добавить пользователя$"), add_user_handler))
         application.add_handler(MessageHandler(filters.Regex("^➖ Удалить пользователя$"), remove_user_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в админ-панель$"), back_to_admin_panel_handler))
+        
+        # Кнопки real-time мониторинга
+        application.add_handler(MessageHandler(filters.Regex("^📊 Дашборд системы$"), system_dashboard_handler))
+        application.add_handler(MessageHandler(filters.Regex("^👥 Активные пользователи$"), active_users_realtime_handler))
+        application.add_handler(MessageHandler(filters.Regex("^⚡ Производительность$"), performance_monitoring_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в админ-панель$"), back_to_admin_panel_handler))
         
         # Кнопки раздела активности пользователей
@@ -338,6 +347,14 @@ def main():
         # Инициализация аналитики
         analytics = Analytics()
         logger.info("✅ Аналитика инициализирована")
+        
+        # Инициализация мониторинга
+        try:
+            from toolbot.services.monitoring import monitoring
+            monitoring.start()
+            logger.info("✅ Real-time мониторинг запущен")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при запуске мониторинга: {e}")
         
         # Инициализация моделей для обнаружения объектов
         initialize_models()

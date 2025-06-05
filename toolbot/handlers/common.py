@@ -29,6 +29,16 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         analytics.log_user_activity(user_id, "user_login", f"Пользователь {user_info} зашел в бота")
         analytics.log_command("start", user_id)
     
+    # Логируем в real-time мониторинге
+    try:
+        from toolbot.services.monitoring import monitoring
+        monitoring.log_user_activity(user_id, 'start', {
+            'username': username,
+            'full_name': full_name
+        })
+    except Exception as e:
+        logger.warning(f"Ошибка логирования в мониторинге: {e}")
+    
     # Проверяем, есть ли пользователь в белом списке
     if not is_allowed_user(user_id):
         await update.message.reply_text(

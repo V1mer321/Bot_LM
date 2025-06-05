@@ -33,6 +33,7 @@ psycopg2-binary>=2.9.0
 # Monitoring
 colorama>=0.4.6
 psutil>=5.9.0
+GPUtil>=1.4.0
 
 # Async operations
 aiohttp>=3.8.5

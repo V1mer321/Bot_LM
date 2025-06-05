@@ -59,7 +59,20 @@ DEPARTMENTS = [
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка фотографий от пользователей"""
+    import time
+    start_time = time.time()
+    
     try:
+        # Логируем активность пользователя в мониторинге
+        try:
+            from toolbot.services.monitoring import monitoring
+            user_id = update.effective_user.id
+            monitoring.log_user_activity(user_id, 'photo_search', {
+                'file_id': update.message.photo[-1].file_id[:20] + '...'  # Короткий ID для логов
+            })
+        except Exception as e:
+            logger.warning(f"Ошибка логирования активности: {e}")
+        
         photo = update.message.photo[-1]  # Берем фото наибольшего размера
         file = await context.bot.get_file(photo.file_id)
         
@@ -170,7 +183,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Отправляем результаты
         await send_search_results(update, context, similar_products, get_short_id(photo.file_id))
         
+        # Логируем производительность
+        try:
+            from toolbot.services.monitoring import monitoring
+            response_time = (time.time() - start_time) * 1000  # В миллисекундах
+            monitoring.log_response_time('photo_search', response_time, success=True)
+            monitoring.log_model_performance('image_search', response_time, accuracy=best_similarity if similar_products else 0)
+        except Exception as e:
+            logger.warning(f"Ошибка логирования производительности: {e}")
+        
     except Exception as e:
+        # Логируем ошибку в мониторинге
+        try:
+            from toolbot.services.monitoring import monitoring
+            response_time = (time.time() - start_time) * 1000
+            monitoring.log_response_time('photo_search', response_time, success=False)
+        except:
+            pass
+            
         logger.error(f"Ошибка при обработке фото: {e}")
         await update.message.reply_text("❌ Произошла ошибка при обработке изображения.")
 
