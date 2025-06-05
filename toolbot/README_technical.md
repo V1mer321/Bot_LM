@@ -164,7 +164,7 @@ kubectl apply -f toolbot/docker/kubernetes/
 - Документация по Docker: `toolbot/docker/README.md`
 - Документация по оптимизации: `toolbot/utils/optimization/README.md`
 
-## 7. Последние исправления (v2.1.0 - Декабрь 2024)
+## 7. Последние исправления (v2.0.2 - Декабрь 2024)
 
 ### 7.1. Критические исправления форматирования
 
