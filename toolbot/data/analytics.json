@@ -1,231 +1,26 @@
 {
-  "total_requests": 94,
+  "total_requests": 126,
   "start_time": 1733426400,
   "users": {
     "2093834331": {
       "first_seen": 1749120139.3220491,
-      "last_seen": 1749138238.6497023,
-      "requests": 128,
+      "last_seen": 1749233519.8523135,
+      "requests": 169,
       "commands": {
-        "admin_panel": 19,
-        "back_to_menu": 16,
-        "start": 16,
-        "photo_search": 6,
+        "admin_panel": 23,
+        "back_to_menu": 25,
+        "start": 25,
+        "photo_search": 10,
         "text_search": 17,
         "update_databases": 1,
-        "photo_search_🧱 Строительные материалы": 3,
+        "photo_search_🧱 Строительные материалы": 7,
         "contacts": 7,
         "stores": 3,
         "skobyanka": 2,
-        "help": 3,
+        "help": 5,
         "photo_search_🚽 Сантехника": 1
       },
       "activity_log": [
-        {
-          "timestamp": 1749134727.868164,
-          "type": "command",
-          "details": "help"
-        },
-        {
-          "timestamp": 1749136659.0923223,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136669.5412116,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136671.9990718,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136681.376655,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136688.6603346,
-          "type": "command",
-          "details": "back_to_menu"
-        },
-        {
-          "timestamp": 1749136688.6617277,
-          "type": "user_login",
-          "details": "Пользователь @lykian_off2 зашел в бота"
-        },
-        {
-          "timestamp": 1749136688.6624715,
-          "type": "command",
-          "details": "start"
-        },
-        {
-          "timestamp": 1749136689.5875516,
-          "type": "command",
-          "details": "help"
-        },
-        {
-          "timestamp": 1749136690.3718412,
-          "type": "command",
-          "details": "back_to_menu"
-        },
-        {
-          "timestamp": 1749136690.373641,
-          "type": "user_login",
-          "details": "Пользователь @lykian_off2 зашел в бота"
-        },
-        {
-          "timestamp": 1749136690.3744411,
-          "type": "command",
-          "details": "start"
-        },
-        {
-          "timestamp": 1749136691.2766562,
-          "type": "command",
-          "details": "photo_search"
-        },
-        {
-          "timestamp": 1749136692.7336757,
-          "type": "command",
-          "details": "back_to_menu"
-        },
-        {
-          "timestamp": 1749136692.7351098,
-          "type": "user_login",
-          "details": "Пользователь @lykian_off2 зашел в бота"
-        },
-        {
-          "timestamp": 1749136692.7358875,
-          "type": "command",
-          "details": "start"
-        },
-        {
-          "timestamp": 1749136697.877446,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136703.7522364,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136817.944031,
-          "type": "command",
-          "details": "back_to_menu"
-        },
-        {
-          "timestamp": 1749136817.945269,
-          "type": "user_login",
-          "details": "Пользователь @lykian_off2 зашел в бота"
-        },
-        {
-          "timestamp": 1749136817.945923,
-          "type": "command",
-          "details": "start"
-        },
-        {
-          "timestamp": 1749136821.3426778,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136831.296744,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136833.7663953,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749136845.7138338,
-          "type": "text_message",
-          "details": "@lykian_off2: 📈 История метрик"
-        },
-        {
-          "timestamp": 1749136845.7148726,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749136859.2813175,
-          "type": "text_message",
-          "details": "@lykian_off2: 🚨 Алерты и уведомления"
-        },
-        {
-          "timestamp": 1749136859.2827811,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749136860.7282307,
-          "type": "text_message",
-          "details": "@lykian_off2: ⚙️ Настройки мониторинга"
-        },
-        {
-          "timestamp": 1749136860.7386682,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749136862.5259786,
-          "type": "command",
-          "details": "admin_panel"
-        },
-        {
-          "timestamp": 1749137253.0641625,
-          "type": "text_message",
-          "details": "@lykian_off2: 📈 История метрик"
-        },
-        {
-          "timestamp": 1749137253.065513,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749137256.091011,
-          "type": "text_message",
-          "details": "@lykian_off2: 🚨 Алерты и уведомления"
-        },
-        {
-          "timestamp": 1749137256.0928648,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749137257.3133001,
-          "type": "text_message",
-          "details": "@lykian_off2: ⚙️ Настройки мониторинга"
-        },
-        {
-          "timestamp": 1749137257.3153362,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749137486.9804883,
-          "type": "text_message",
-          "details": "@lykian_off2: 📈 История метрик"
-        },
-        {
-          "timestamp": 1749137486.9831142,
-          "type": "command",
-          "details": "text_search"
-        },
-        {
-          "timestamp": 1749137498.8411756,
-          "type": "text_message",
-          "details": "@lykian_off2: 🚨 Алерты и уведомления"
-        },
-        {
-          "timestamp": 1749137498.842486,
-          "type": "command",
-          "details": "text_search"
-        },
         {
           "timestamp": 1749137500.041839,
           "type": "text_message",
@@ -270,22 +65,227 @@
           "timestamp": 1749138238.6497023,
           "type": "command",
           "details": "admin_panel"
+        },
+        {
+          "timestamp": 1749232180.8228261,
+          "type": "command",
+          "details": "admin_panel"
+        },
+        {
+          "timestamp": 1749232183.0312908,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232183.0328345,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232183.033462,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232184.06041,
+          "type": "command",
+          "details": "help"
+        },
+        {
+          "timestamp": 1749232225.9910553,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232225.9934967,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232225.9941628,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232229.4009018,
+          "type": "command",
+          "details": "admin_panel"
+        },
+        {
+          "timestamp": 1749232299.095883,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232299.0982497,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232299.099468,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232300.2938173,
+          "type": "command",
+          "details": "photo_search"
+        },
+        {
+          "timestamp": 1749232300.9931962,
+          "type": "command",
+          "details": "photo_search_🧱 Строительные материалы"
+        },
+        {
+          "timestamp": 1749232394.5303566,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232394.5326385,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232394.5339494,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232591.7921731,
+          "type": "command",
+          "details": "admin_panel"
+        },
+        {
+          "timestamp": 1749232595.0812452,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232595.0826728,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232595.0832722,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232596.0712895,
+          "type": "command",
+          "details": "help"
+        },
+        {
+          "timestamp": 1749232598.320683,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232598.3222353,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232598.3229287,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749232725.401579,
+          "type": "command",
+          "details": "admin_panel"
+        },
+        {
+          "timestamp": 1749232848.5514953,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749232848.552729,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749232848.5533109,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749233440.3381839,
+          "type": "command",
+          "details": "photo_search"
+        },
+        {
+          "timestamp": 1749233441.5353339,
+          "type": "command",
+          "details": "photo_search_🧱 Строительные материалы"
+        },
+        {
+          "timestamp": 1749233491.6746414,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749233491.6768298,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749233491.6778972,
+          "type": "command",
+          "details": "start"
+        },
+        {
+          "timestamp": 1749233492.7586925,
+          "type": "command",
+          "details": "photo_search"
+        },
+        {
+          "timestamp": 1749233493.4979312,
+          "type": "command",
+          "details": "photo_search_🧱 Строительные материалы"
+        },
+        {
+          "timestamp": 1749233502.6106772,
+          "type": "command",
+          "details": "photo_search"
+        },
+        {
+          "timestamp": 1749233503.349342,
+          "type": "command",
+          "details": "photo_search_🧱 Строительные материалы"
+        },
+        {
+          "timestamp": 1749233519.849071,
+          "type": "command",
+          "details": "back_to_menu"
+        },
+        {
+          "timestamp": 1749233519.8512516,
+          "type": "user_login",
+          "details": "Пользователь @lykian_off2 зашел в бота"
+        },
+        {
+          "timestamp": 1749233519.8523135,
+          "type": "command",
+          "details": "start"
         }
       ]
     }
   },
   "commands": {
-    "admin_panel": 19,
-    "back_to_menu": 16,
-    "start": 16,
-    "photo_search": 6,
+    "admin_panel": 23,
+    "back_to_menu": 25,
+    "start": 25,
+    "photo_search": 10,
     "text_search": 17,
     "update_databases": 1,
-    "photo_search_🧱 Строительные материалы": 3,
+    "photo_search_🧱 Строительные материалы": 7,
     "contacts": 7,
     "stores": 3,
     "skobyanka": 2,
-    "help": 3,
+    "help": 5,
     "photo_search_🚽 Сантехника": 1
   },
   "photo_searches": {

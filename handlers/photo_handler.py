@@ -243,7 +243,11 @@ async def send_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
             keyboard = [
                 [InlineKeyboardButton("🔗 Открыть товар", url=product['url'])],
                 [InlineKeyboardButton("📋 Выбрать отдел", callback_data=safe_callback_data(f"select_dept_{product['item_id']}"))],
-                [InlineKeyboardButton("❌ Это не мой товар", callback_data=safe_callback_data(f"not_my_item_{short_id}_{i}"))]
+                [
+                    InlineKeyboardButton("✅ Правильно", callback_data=safe_callback_data(f"correct_{short_id}_{i}_{product['item_id']}")),
+                    InlineKeyboardButton("❌ Неправильно", callback_data=safe_callback_data(f"incorrect_{short_id}_{i}_{product['item_id']}"))
+                ],
+                [InlineKeyboardButton("➕ Добавить новый товар", callback_data=safe_callback_data(f"new_item_{short_id}"))]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -417,32 +421,31 @@ async def handle_contact_support_callback(update: Update, context: ContextTypes.
     )
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текстовых сообщений (включая комментарии к поиску)"""
-    # Проверяем, ожидается ли комментарий к поиску
-    awaiting_comment_for = context.user_data.get('awaiting_comment_for')
+    """Обработка текстовых сообщений (включая комментарии к поиску и описания товаров)"""
+    user_text = update.message.text
     
+    # Проверяем различные типы ожидаемого ввода
+    awaiting_comment_for = context.user_data.get('awaiting_comment_for')
+    awaiting_new_product_for = context.user_data.get('awaiting_new_product_for')
+    awaiting_correct_item_for = context.user_data.get('awaiting_correct_item_for')
+    
+    # Обработка комментария к поиску
     if awaiting_comment_for:
-        # Получаем комментарий пользователя
-        user_comment = update.message.text
-        
-        # Получаем контекст поиска по короткому ID
         search_key = f'search_session_{awaiting_comment_for}'
         search_context = context.user_data.get(search_key)
         
         if search_context:
             stats_service = get_stats_service()
             if stats_service:
-                # Обновляем запись о неудачном поиске с комментарием
                 stats_service.log_failed_search(
                     user_id=search_context['user_id'],
                     username=search_context['username'],
                     photo_file_id=search_context['photo_file_id'],
                     search_results=search_context['results'],
                     feedback_type='not_my_product_with_comment',
-                    user_comment=user_comment
+                    user_comment=user_text
                 )
         
-        # Очищаем состояние ожидания комментария
         del context.user_data['awaiting_comment_for']
         
         await update.message.reply_text(
@@ -450,6 +453,16 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             "📊 Ваша обратная связь поможет нам улучшить качество поиска.\n"
             "🎯 Попробуйте отправить другое фото для поиска."
         )
+        return
+    
+    # Обработка описания нового товара
+    elif awaiting_new_product_for:
+        await handle_new_product_description(update, context, awaiting_new_product_for, user_text)
+        return
+    
+    # Обработка указания правильного товара
+    elif awaiting_correct_item_for:
+        await handle_correct_item_specification(update, context, awaiting_correct_item_for, user_text)
         return
     
     # Если не ожидается комментарий, передаем управление обычному обработчику текста
@@ -460,4 +473,379 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Ошибка в обработчике текста: {e}")
         await update.message.reply_text(
             "📸 Отправьте фото товара для поиска или используйте /help для получения справки."
-        ) 
+        )
+
+# ==================== НОВЫЕ ОБРАБОТЧИКИ ДЛЯ ДООБУЧЕНИЯ ====================
+
+async def handle_correct_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка правильного результата поиска"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Парсим callback_data: correct_{short_id}_{result_index}_{item_id}
+        data_parts = query.data.split('_')
+        if len(data_parts) >= 4:
+            short_id = data_parts[1]
+            result_index = int(data_parts[2])
+            item_id = data_parts[3]
+            
+            # Получаем контекст поиска
+            search_key = f'search_session_{short_id}'
+            search_context = context.user_data.get(search_key)
+            
+            if search_context:
+                # Получаем оригинальное изображение
+                photo_file_id = search_context['photo_file_id']
+                
+                # Сохраняем изображение для обучения
+                photo_path = await save_training_image(context, photo_file_id, short_id)
+                
+                # Получаем similarity_score для данного результата
+                results = search_context.get('results', [])
+                similarity_score = 0.5
+                if result_index-1 < len(results):
+                    similarity_score = results[result_index-1].get('similarity', 0.5)
+                
+                # Добавляем обучающий пример
+                from services.training_data_service import get_training_service
+                training_service = get_training_service()
+                
+                example_id = training_service.add_training_example(
+                    photo_file_id=photo_file_id,
+                    user_id=search_context['user_id'],
+                    username=search_context['username'],
+                    feedback_type='correct',
+                    target_item_id=item_id,
+                    similarity_score=similarity_score,
+                    image_path=photo_path,
+                    quality_rating=5  # Правильный результат = высокое качество
+                )
+                
+                if example_id:
+                    logger.info(f"✅ Добавлен положительный пример обучения #{example_id}")
+                    
+                    await query.edit_message_caption(
+                        caption="✅ Спасибо! Ваша оценка поможет улучшить точность поиска.\n\n"
+                               "🎯 Этот пример будет использован для дообучения модели.\n"
+                               f"📝 ID обучающего примера: #{example_id}",
+                        reply_markup=None
+                    )
+                else:
+                    await query.edit_message_caption(
+                        caption="✅ Спасибо за обратную связь!\n\n"
+                               "❌ Не удалось сохранить пример для обучения.",
+                        reply_markup=None
+                    )
+            else:
+                await query.edit_message_caption(
+                    caption="✅ Спасибо за обратную связь!",
+                    reply_markup=None
+                )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при обработке правильного результата: {e}")
+        await query.edit_message_caption(
+            caption="✅ Спасибо за обратную связь!",
+            reply_markup=None
+        )
+
+async def handle_incorrect_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка неправильного результата поиска"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Парсим callback_data: incorrect_{short_id}_{result_index}_{item_id}
+        data_parts = query.data.split('_')
+        if len(data_parts) >= 4:
+            short_id = data_parts[1]
+            result_index = int(data_parts[2])
+            item_id = data_parts[3]
+            
+            # Получаем контекст поиска
+            search_key = f'search_session_{short_id}'
+            search_context = context.user_data.get(search_key)
+            
+            if search_context:
+                # Получаем оригинальное изображение
+                photo_file_id = search_context['photo_file_id']
+                
+                # Сохраняем изображение для обучения
+                photo_path = await save_training_image(context, photo_file_id, short_id)
+                
+                # Получаем similarity_score для данного результата
+                results = search_context.get('results', [])
+                similarity_score = 0.5
+                if result_index-1 < len(results):
+                    similarity_score = results[result_index-1].get('similarity', 0.5)
+                
+                # Добавляем отрицательный обучающий пример
+                from services.training_data_service import get_training_service
+                training_service = get_training_service()
+                
+                example_id = training_service.add_training_example(
+                    photo_file_id=photo_file_id,
+                    user_id=search_context['user_id'],
+                    username=search_context['username'],
+                    feedback_type='incorrect',
+                    target_item_id=item_id,
+                    similarity_score=similarity_score,
+                    image_path=photo_path,
+                    quality_rating=2  # Неправильный результат = низкое качество
+                )
+                
+                if example_id:
+                    logger.info(f"❌ Добавлен отрицательный пример обучения #{example_id}")
+                    
+                    # Предлагаем указать правильный товар
+                    keyboard = [
+                        [InlineKeyboardButton("➕ Указать правильный товар", callback_data=f"specify_correct_{short_id}")],
+                        [InlineKeyboardButton("🔄 Попробовать другое фото", callback_data="try_another_photo")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await query.edit_message_caption(
+                        caption="❌ Понятно, этот результат не подходит.\n\n"
+                               "🎯 Ваш отзыв поможет улучшить точность поиска.\n"
+                               f"📝 ID обучающего примера: #{example_id}\n\n"
+                               "💡 Хотите указать правильный товар?",
+                        reply_markup=reply_markup
+                    )
+                else:
+                    await query.edit_message_caption(
+                        caption="❌ Спасибо за обратную связь!\n\n"
+                               "❌ Не удалось сохранить пример для обучения.",
+                        reply_markup=None
+                    )
+            else:
+                await query.edit_message_caption(
+                    caption="❌ Спасибо за обратную связь!",
+                    reply_markup=None
+                )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при обработке неправильного результата: {e}")
+        await query.edit_message_caption(
+            caption="❌ Спасибо за обратную связь!",
+            reply_markup=None
+        )
+
+async def handle_new_item_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка запроса на добавление нового товара"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Парсим callback_data: new_item_{short_id}
+        short_id = query.data.replace('new_item_', '')
+        
+        # Сохраняем состояние ожидания описания нового товара
+        context.user_data['awaiting_new_product_for'] = short_id
+        
+        await query.edit_message_caption(
+            caption="➕ Добавление нового товара в каталог\n\n"
+                   "📝 Пожалуйста, опишите товар:\n"
+                   "• Название\n"
+                   "• Категория (если знаете)\n"
+                   "• Краткое описание\n\n"
+                   "💡 Пример: 'Дрель ударная, электроинструмент, 850W'\n\n"
+                   "✍️ Напишите описание одним сообщением:",
+            reply_markup=None
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при запросе нового товара: {e}")
+        await query.answer("❌ Ошибка при обработке запроса", show_alert=True)
+
+async def handle_specify_correct_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка указания правильного товара"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Парсим callback_data: specify_correct_{short_id}
+        short_id = query.data.replace('specify_correct_', '')
+        
+        # Сохраняем состояние ожидания указания правильного товара
+        context.user_data['awaiting_correct_item_for'] = short_id
+        
+        await query.edit_message_caption(
+            caption="🎯 Укажите правильный товар\n\n"
+                   "📝 Напишите:\n"
+                   "• Артикул товара (если знаете)\n"
+                   "• Или название и описание\n\n"
+                   "💡 Пример: 'Артикул: ABC123' или 'Саморезы 4x50 оцинкованные'\n\n"
+                   "✍️ Напишите информацию о товаре:",
+            reply_markup=None
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при запросе правильного товара: {e}")
+        await query.answer("❌ Ошибка при обработке запроса", show_alert=True)
+
+async def save_training_image(context, photo_file_id: str, short_id: str) -> str:
+    """Сохранение изображения для обучения"""
+    try:
+        import os
+        from datetime import datetime
+        
+        # Создаем директорию для обучающих изображений
+        training_dir = 'temp/training_images'
+        os.makedirs(training_dir, exist_ok=True)
+        
+        # Генерируем уникальное имя файла
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'training_{short_id}_{timestamp}.jpg'
+        file_path = os.path.join(training_dir, filename)
+        
+        # Скачиваем изображение
+        file = await context.bot.get_file(photo_file_id)
+        await file.download_to_drive(file_path)
+        
+        logger.info(f"💾 Изображение сохранено для обучения: {file_path}")
+        return file_path
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при сохранении изображения для обучения: {e}")
+        return ""
+
+async def handle_new_product_description(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                       short_id: str, description: str):
+    """Обработка описания нового товара"""
+    try:
+        # Получаем контекст поиска
+        search_key = f'search_session_{short_id}'
+        search_context = context.user_data.get(search_key)
+        
+        if search_context:
+            photo_file_id = search_context['photo_file_id']
+            
+            # Сохраняем изображение для аннотации
+            photo_path = await save_training_image(context, photo_file_id, short_id)
+            
+            # Парсим описание товара
+            parts = description.split(',')
+            product_name = parts[0].strip() if parts else description
+            product_category = parts[1].strip() if len(parts) > 1 else ""
+            product_description = parts[2].strip() if len(parts) > 2 else description
+            
+            # Добавляем аннотацию нового товара
+            from services.training_data_service import get_training_service
+            training_service = get_training_service()
+            
+            annotation_id = training_service.add_new_product_annotation(
+                photo_file_id=photo_file_id,
+                user_id=search_context['user_id'],
+                username=search_context['username'],
+                product_name=product_name,
+                product_category=product_category,
+                product_description=product_description,
+                image_path=photo_path
+            )
+            
+            if annotation_id:
+                logger.info(f"➕ Добавлена аннотация нового товара #{annotation_id}")
+                
+                await update.message.reply_text(
+                    f"✅ Спасибо! Ваш новый товар добавлен на рассмотрение.\n\n"
+                    f"📝 ID аннотации: #{annotation_id}\n"
+                    f"🏷️ Название: {product_name}\n"
+                    f"📂 Категория: {product_category or 'Не указана'}\n"
+                    f"📋 Описание: {product_description}\n\n"
+                    f"👨‍💼 Администратор рассмотрит заявку и добавит товар в каталог.\n"
+                    f"📧 Вы получите уведомление о результате."
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Не удалось сохранить аннотацию товара.\n\n"
+                    "🔄 Попробуйте еще раз или обратитесь к администратору."
+                )
+        else:
+            await update.message.reply_text(
+                "❌ Не удалось найти контекст поиска.\n\n"
+                "🔄 Попробуйте сделать новый поиск."
+            )
+        
+        # Очищаем состояние
+        del context.user_data['awaiting_new_product_for']
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при обработке описания нового товара: {e}")
+        await update.message.reply_text(
+            "❌ Произошла ошибка при обработке описания товара.\n\n"
+            "🔄 Попробуйте еще раз."
+        )
+        if 'awaiting_new_product_for' in context.user_data:
+            del context.user_data['awaiting_new_product_for']
+
+async def handle_correct_item_specification(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                          short_id: str, specification: str):
+    """Обработка указания правильного товара"""
+    try:
+        # Получаем контекст поиска
+        search_key = f'search_session_{short_id}'
+        search_context = context.user_data.get(search_key)
+        
+        if search_context:
+            photo_file_id = search_context['photo_file_id']
+            
+            # Сохраняем изображение для обучения
+            photo_path = await save_training_image(context, photo_file_id, short_id)
+            
+            # Добавляем правильный обучающий пример
+            from services.training_data_service import get_training_service
+            training_service = get_training_service()
+            
+            # Пытаемся извлечь артикул из описания
+            target_item_id = None
+            if specification.lower().startswith('артикул'):
+                parts = specification.split(':', 1)
+                if len(parts) > 1:
+                    target_item_id = parts[1].strip()
+            
+            example_id = training_service.add_training_example(
+                photo_file_id=photo_file_id,
+                user_id=search_context['user_id'],
+                username=search_context['username'],
+                feedback_type='correct',
+                target_item_id=target_item_id,
+                similarity_score=1.0,  # Максимальная схожесть для правильного указания
+                user_comment=specification,
+                image_path=photo_path,
+                quality_rating=5
+            )
+            
+            if example_id:
+                logger.info(f"🎯 Добавлен правильный пример обучения #{example_id}")
+                
+                await update.message.reply_text(
+                    f"✅ Отлично! Правильный товар добавлен в обучающие данные.\n\n"
+                    f"📝 ID примера: #{example_id}\n"
+                    f"🎯 Указание: {specification}\n"
+                    f"🏷️ Артикул: {target_item_id or 'Не указан'}\n\n"
+                    f"🧠 Эта информация поможет улучшить точность поиска.\n"
+                    f"🙏 Спасибо за помощь в обучении системы!"
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ Не удалось сохранить обучающий пример.\n\n"
+                    "🔄 Попробуйте еще раз или обратитесь к администратору."
+                )
+        else:
+            await update.message.reply_text(
+                "❌ Не удалось найти контекст поиска.\n\n"
+                "🔄 Попробуйте сделать новый поиск."
+            )
+        
+        # Очищаем состояние
+        del context.user_data['awaiting_correct_item_for']
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при обработке указания правильного товара: {e}")
+        await update.message.reply_text(
+            "❌ Произошла ошибка при обработке указания товара.\n\n"
+            "🔄 Попробуйте еще раз."
+        )
+        if 'awaiting_correct_item_for' in context.user_data:
+            del context.user_data['awaiting_correct_item_for']

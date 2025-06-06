@@ -67,7 +67,13 @@ from toolbot.handlers.contacts import (contacts_handler, stores_handler, maps_ha
 from handlers.photo_handler import (handle_photo as photo_handler, 
                                   handle_not_my_item_callback, handle_add_comment_callback,
                                   handle_try_another_photo_callback, handle_contact_support_callback,
-                                  handle_text_message)
+                                  handle_text_message, handle_correct_feedback, handle_incorrect_feedback,
+                                  handle_new_item_request, handle_specify_correct_item)
+
+# Импортируем обработчики дообучения
+from handlers.admin_training_handler import (admin_training_stats_command, admin_start_training_command,
+                                            admin_view_examples_command, admin_manage_new_products_command,
+                                            handle_admin_callback)
 # Используем тестовые обработчики только для навигации  
 from toolbot.handlers.photo_handler import photo_search_handler, department_selection_handler, back_to_departments_handler
 from toolbot.handlers.text_handler import text_handler
@@ -232,10 +238,25 @@ def register_handlers(application):
         application.add_handler(CallbackQueryHandler(handle_try_another_photo_callback, pattern=r"^try_another_photo$"))
         application.add_handler(CallbackQueryHandler(handle_contact_support_callback, pattern=r"^contact_support$"))
         
+        # Callback handlers для системы дообучения
+        application.add_handler(CallbackQueryHandler(handle_correct_feedback, pattern=r"^correct_"))
+        application.add_handler(CallbackQueryHandler(handle_incorrect_feedback, pattern=r"^incorrect_"))
+        application.add_handler(CallbackQueryHandler(handle_new_item_request, pattern=r"^new_item_"))
+        application.add_handler(CallbackQueryHandler(handle_specify_correct_item, pattern=r"^specify_correct_"))
+        application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern=r"^admin_"))
+        
         # Команды для администраторов (обратная связь)
         application.add_handler(CommandHandler("feedback_stats", view_feedback_stats_handler))
         application.add_handler(CommandHandler("view_errors", view_errors_handler))
         application.add_handler(CommandHandler("view_suggestions", view_suggestions_handler))
+        
+        # Административные команды для дообучения
+        from main import admin_help_command  # Импортируем из корневого main.py
+        application.add_handler(CommandHandler("admin_help", admin_help_command))
+        application.add_handler(CommandHandler("admin_training_stats", admin_training_stats_command))
+        application.add_handler(CommandHandler("admin_start_training", admin_start_training_command))
+        application.add_handler(CommandHandler("admin_view_examples", admin_view_examples_command))
+        application.add_handler(CommandHandler("admin_new_products", admin_manage_new_products_command))
         
         # Обработчик фотографий (используем toolbot.handlers.photo_handler)
         application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
