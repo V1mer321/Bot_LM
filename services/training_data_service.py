@@ -376,6 +376,106 @@ class TrainingDataService:
             logger.error(f"❌ Ошибка при одобрении товара: {e}")
             return False
     
+    def update_product_annotation(self, annotation_id: int, product_name: str = None, 
+                                product_description: str = None) -> bool:
+        """Обновление названия и описания товара"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if product_name is not None:
+                updates.append("product_name = ?")
+                params.append(product_name)
+                
+            if product_description is not None:
+                updates.append("product_description = ?")
+                params.append(product_description)
+                
+            if not updates:
+                return True  # Нечего обновлять
+                
+            params.append(annotation_id)
+            
+            cursor.execute(f'''
+                UPDATE new_product_annotations 
+                SET {", ".join(updates)}
+                WHERE id = ?
+            ''', params)
+            
+            success = cursor.rowcount > 0
+            conn.commit()
+            conn.close()
+            
+            if success:
+                logger.info(f"✅ Товар #{annotation_id} обновлен")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при обновлении товара: {e}")
+            return False
+    
+    def get_product_annotation(self, annotation_id: int) -> Dict:
+        """Получение информации о товаре по ID аннотации"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, user_id, username, product_name, product_description, 
+                       image_path, created_at, admin_approved
+                FROM new_product_annotations 
+                WHERE id = ?
+            ''', (annotation_id,))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return {
+                    'id': row[0],
+                    'user_id': row[1], 
+                    'username': row[2],
+                    'product_name': row[3],
+                    'product_description': row[4],
+                    'image_path': row[5],
+                    'created_at': row[6],
+                    'admin_approved': row[7]
+                }
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении товара: {e}")
+            return None
+    
+    def reject_product_annotation(self, annotation_id: int, admin_id: int = None) -> bool:
+        """Отклонение товара администратором"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE new_product_annotations 
+                SET admin_approved = -1, admin_id = ?, approval_date = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (admin_id, annotation_id))
+            
+            success = cursor.rowcount > 0
+            conn.commit()
+            conn.close()
+            
+            if success:
+                logger.info(f"❌ Товар #{annotation_id} отклонен администратором {admin_id}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при отклонении товара: {e}")
+            return False
+    
     def log_model_backup(self, metadata: Dict) -> int:
         """
         Логирование информации о резервной копии модели

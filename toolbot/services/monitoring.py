@@ -64,7 +64,8 @@ class SystemMonitor:
                 })
                 time.sleep(5)  # Обновление каждые 5 секунд
             except Exception as e:
-                logger.error(f"Ошибка в мониторинге: {e}")
+                # Используем безопасное логирование чтобы избежать ошибок форматирования
+                logger.error("Ошибка в мониторинге: %s", str(e))
                 time.sleep(10)
     
     def collect_system_metrics(self) -> Dict[str, Any]:
@@ -91,13 +92,26 @@ class SystemMonitor:
         }
         
         # Диск
-        disk = psutil.disk_usage('/')
-        metrics['disk'] = {
-            'total_gb': round(disk.total / (1024**3), 2),
-            'used_gb': round(disk.used / (1024**3), 2),
-            'free_gb': round(disk.free / (1024**3), 2),
-            'usage_percent': round((disk.used / disk.total) * 100, 1)
-        }
+        try:
+            # Используем правильный путь для Windows/Linux
+            import platform
+            disk_path = 'C:\\' if platform.system() == 'Windows' else '/'
+            disk = psutil.disk_usage(disk_path)
+            metrics['disk'] = {
+                'total_gb': round(disk.total / (1024**3), 2),
+                'used_gb': round(disk.used / (1024**3), 2),
+                'free_gb': round(disk.free / (1024**3), 2),
+                'usage_percent': round((disk.used / disk.total) * 100, 1)
+            }
+        except Exception as e:
+            # Логируем ошибку с экранированием символов
+            logger.error("Ошибка получения информации о диске: %s", str(e))
+            metrics['disk'] = {
+                'total_gb': 0,
+                'used_gb': 0,
+                'free_gb': 0,
+                'usage_percent': 0
+            }
         
         # Сеть
         network = psutil.net_io_counters()
@@ -142,7 +156,7 @@ class SystemMonitor:
                 'memory_usage_percent': round((gpu.memoryUsed / gpu.memoryTotal) * 100, 1)
             }
         except Exception as e:
-            logger.error(f"Ошибка получения GPU метрик: {e}")
+            logger.error("Ошибка получения GPU метрик: %s", str(e))
             return None
     
     def _get_torch_gpu_metrics(self) -> Optional[Dict]:
@@ -167,7 +181,7 @@ class SystemMonitor:
                 'compute_capability': f"{props.major}.{props.minor}"
             }
         except Exception as e:
-            logger.error(f"Ошибка получения PyTorch GPU метрик: {e}")
+            logger.error("Ошибка получения PyTorch GPU метрик: %s", str(e))
             return None
     
     def get_current_metrics(self) -> Dict[str, Any]:
@@ -217,7 +231,7 @@ class UserActivityMonitor:
         self.user_sessions[user_id].append(session_data)
         
         # Обновляем статистику
-        hour_key = now.strftime('%Y-%m-%d %H')
+        hour_key = now.strftime('%Y-%m-%d %H:00')
         date_key = now.strftime('%Y-%m-%d')
         self.hourly_stats[hour_key] += 1
         self.daily_stats[date_key] += 1
@@ -264,7 +278,7 @@ class UserActivityMonitor:
         
         # Активность за последний час
         hour_ago = now - timedelta(hours=1)
-        hour_key = hour_ago.strftime('%Y-%m-%d %H')
+        hour_key = hour_ago.strftime('%Y-%m-%d %H:00')
         requests_last_hour = self.hourly_stats.get(hour_key, 0)
         
         # Активность за сегодня

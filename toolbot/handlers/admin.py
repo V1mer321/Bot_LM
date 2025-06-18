@@ -36,8 +36,8 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         ["👥 Управление пользователями", "💬 Обратная связь"],
         ["📊 Статистика поиска", "👀 Активность пользователей"],
         ["🕒 Real-time мониторинг", "👑 Добавить администратора"],
-        ["🔄 Обновить базы"],
-        ["🔙 Назад в меню"]
+        ["📢 Отправить сообщение всем", "📝 Логи текстов"],
+        ["🔄 Обновить базы", "🔙 Назад в меню"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -50,6 +50,8 @@ async def admin_panel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         "• 👀 Активность пользователей - мониторинг входов и действий\n"
         "• 🕒 Real-time мониторинг - система в реальном времени\n"
         "• 👑 Добавить администратора - назначение нового админа\n"
+        "• 📢 Отправить сообщение всем - массовая рассылка пользователям\n"
+        "• 📝 Логи текстов - просмотр текстовых сообщений пользователей\n"
         "• 🔄 Обновить базы - обновление баз данных\n\n"
         "💡 _Используйте кнопки для навигации_",
         reply_markup=reply_markup,
@@ -204,10 +206,15 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
     if not is_admin(user_id):
         return False
     
-    # Обработка ввода ID пользователя для добавления
+    # Обработка ввода ID нового пользователя
     if state == 'awaiting_new_user_id':
         try:
-            new_user_id = int(text.strip())
+            # Удаляем все нецифровые символы кроме минуса
+            clean_text = ''.join(c for c in text.strip() if c.isdigit() or c == '-')
+            if not clean_text or clean_text == '-':
+                raise ValueError("Пустой ID")
+            
+            new_user_id = int(clean_text)
             
             if add_user_to_whitelist(new_user_id):
                 await update.message.reply_text(f"✅ Пользователь с ID {new_user_id} успешно добавлен.")
@@ -217,14 +224,19 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
             # Сбрасываем состояние
             context.user_data.pop('state', None)
             return True
-        except ValueError:
-            await update.message.reply_text("❌ Неверный формат ID. Пожалуйста, введите числовой ID.")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Неверный формат ID. Введите числовой ID (например: 123456789 или -123456789)")
             return True
     
     # Обработка ввода ID пользователя для удаления
     elif state == 'awaiting_remove_user_id':
         try:
-            user_id_to_remove = int(text.strip())
+            # Удаляем все нецифровые символы кроме минуса
+            clean_text = ''.join(c for c in text.strip() if c.isdigit() or c == '-')
+            if not clean_text or clean_text == '-':
+                raise ValueError("Пустой ID")
+            
+            user_id_to_remove = int(clean_text)
             
             if remove_user_from_whitelist(user_id_to_remove):
                 await update.message.reply_text(f"✅ Пользователь с ID {user_id_to_remove} успешно удален.")
@@ -234,14 +246,19 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
             # Сбрасываем состояние
             context.user_data.pop('state', None)
             return True
-        except ValueError:
-            await update.message.reply_text("❌ Неверный формат ID. Пожалуйста, введите числовой ID.")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Неверный формат ID. Введите числовой ID (например: 123456789 или -123456789)")
             return True
     
     # Обработка ввода ID пользователя для назначения администратором
     elif state == 'awaiting_new_admin_id':
         try:
-            new_admin_id = int(text.strip())
+            # Удаляем все нецифровые символы кроме минуса
+            clean_text = ''.join(c for c in text.strip() if c.isdigit() or c == '-')
+            if not clean_text or clean_text == '-':
+                raise ValueError("Пустой ID")
+            
+            new_admin_id = int(clean_text)
             
             # Проверяем, не является ли пользователь уже администратором
             config_data = load_config()
@@ -260,14 +277,78 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
             # Сбрасываем состояние
             context.user_data.pop('state', None)
             return True
-        except ValueError:
-            await update.message.reply_text("❌ Неверный формат ID. Пожалуйста, введите числовой ID.")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Неверный формат ID. Введите числовой ID (например: 123456789 или -123456789)")
+            return True
+    
+    # Обработка ввода текста сообщения для рассылки
+    elif state == 'awaiting_broadcast_message':
+        if text.strip():
+            await send_broadcast_message(update, context, text.strip())
+            return True
+        else:
+            await update.message.reply_text("❌ Сообщение не может быть пустым. Попробуйте еще раз:")
+            return True
+    
+    # Обработка подтверждения рассылки
+    elif state == 'awaiting_broadcast_confirmation':
+        if text == "✅ Да, отправить":
+            await execute_broadcast(update, context)
+            return True
+        elif text == "❌ Отменить":
+            # Очищаем состояние
+            context.user_data.pop('broadcast_text', None)
+            context.user_data.pop('broadcast_users', None)
+            context.user_data.pop('state', None)
+            
+            await update.message.reply_text(
+                "❌ Рассылка отменена.",
+                reply_markup=ReplyKeyboardMarkup([
+                    ["👥 Управление пользователями", "💬 Обратная связь"],
+                    ["📊 Статистика поиска", "👀 Активность пользователей"],
+                    ["🕒 Real-time мониторинг", "👑 Добавить администратора"],
+                    ["📢 Отправить сообщение всем", "📝 Логи текстов"],
+                    ["🔄 Обновить базы", "🔙 Назад в меню"]
+                ], resize_keyboard=True)
+            )
+            return True
+        else:
+            await update.message.reply_text("❓ Пожалуйста, выберите один из вариантов: '✅ Да, отправить' или '❌ Отменить'")
+            return True
+    
+    # Обработка поиска в текстовых логах
+    elif state == 'awaiting_text_search_query':
+        if text.strip():
+            await perform_text_search(update, context, text.strip())
+            return True
+        else:
+            await update.message.reply_text("❌ Поисковый запрос не может быть пустым. Попробуйте еще раз:")
+            return True
+    
+    # Обработка запроса сообщений пользователя
+    elif state == 'awaiting_user_messages_id':
+        try:
+            # Удаляем все нецифровые символы кроме минуса
+            clean_text = ''.join(c for c in text.strip() if c.isdigit() or c == '-')
+            if not clean_text or clean_text == '-':
+                raise ValueError("Пустой ID")
+            
+            target_user_id = int(clean_text)
+            await show_user_messages(update, context, target_user_id)
+            return True
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Неверный формат ID. Введите числовой ID (например: 123456789 или -123456789)")
             return True
     
     # Обработка поиска пользователя по ID
     elif state == 'awaiting_user_search_id':
         try:
-            search_user_id = int(text.strip())
+            # Удаляем все нецифровые символы кроме минуса
+            clean_text = ''.join(c for c in text.strip() if c.isdigit() or c == '-')
+            if not clean_text or clean_text == '-':
+                raise ValueError("Пустой ID")
+            
+            search_user_id = int(clean_text)
             
             # Получаем аналитику
             analytics = context.bot_data.get('analytics')
@@ -313,23 +394,24 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
             else:
                 status = "🔴 Давно не заходил"
             
-            message = f"*🔍 Информация о пользователе {search_user_id}*\n\n"
-            message += f"📊 *Статус:* {status}\n"
-            message += f"👤 *Первый вход:* {first_seen_str}\n"
-            message += f"⏰ *Последний вход:* {last_seen_str}\n"
-            message += f"📞 *Всего запросов:* {total_requests}\n\n"
+            message = f"🔍 Информация о пользователе {search_user_id}\n\n"
+            message += f"📊 Статус: {status}\n"
+            message += f"👤 Первый вход: {first_seen_str}\n"
+            message += f"⏰ Последний вход: {last_seen_str}\n"
+            message += f"📞 Всего запросов: {total_requests}\n\n"
             
             # Топ команд пользователя
             if commands:
-                message += "*🔝 Популярные команды:*\n"
+                message += "🔝 Популярные команды:\n"
                 sorted_commands = sorted(commands.items(), key=lambda x: x[1], reverse=True)
                 for cmd, count in sorted_commands[:5]:
-                    message += f"• `{cmd}` - {count}x\n"
+                    cmd_safe = cmd.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
+                    message += f"• {cmd_safe} \\- {count}x\n"
                 message += "\n"
             
             # Последняя активность
             if activity_log:
-                message += "*📝 Последняя активность:*\n"
+                message += "📝 Последняя активность:\n"
                 for activity in activity_log[-5:]:  # Последние 5 записей
                     timestamp = activity.get('timestamp', 0)
                     activity_type = activity.get('type', 'unknown')
@@ -340,19 +422,25 @@ async def process_admin_text_input(update: Update, context: ContextTypes.DEFAULT
                     
                     # Сокращаем детали для отображения
                     short_details = details[:30] + "..." if len(details) > 30 else details
+                    details_safe = short_details.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
                     
-                    message += f"• {activity_str} - {activity_type}: {short_details}\n"
+                    message += f"• {activity_str} \\- {activity_type}: {details_safe}\n"
             
             await update.message.reply_text(
                 message,
-                parse_mode='Markdown'
+                parse_mode='MarkdownV2'
             )
                 
             # Сбрасываем состояние
             context.user_data.pop('state', None)
             return True
-        except ValueError:
-            await update.message.reply_text("❌ Неверный формат ID. Пожалуйста, введите числовой ID.")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Неверный формат ID. Введите числовой ID (например: 123456789 или -123456789)")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка при поиске пользователя: {e}")
+            await update.message.reply_text(f"❌ Ошибка при поиске пользователя: {str(e)}")
+            context.user_data.pop('state', None)
             return True
     
     return False
@@ -1629,3 +1717,603 @@ async def monitoring_settings_handler(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text(
             f"❌ Ошибка при получении настроек мониторинга:\n{str(e)}"
         ) 
+
+
+async def broadcast_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик для отправки сообщений всем пользователям
+    """
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    # Устанавливаем состояние ожидания текста сообщения
+    context.user_data['state'] = 'awaiting_broadcast_message'
+
+    await update.message.reply_text(
+        "*📢 Массовая рассылка*\n\n"
+        "Отправьте текст сообщения, которое будет разослано всем пользователям бота.\n\n"
+        "⚠️ *Внимание:* Сообщение получат все пользователи, которые когда-либо пользовались ботом!\n\n"
+        "💡 Поддерживается *Markdown* форматирование:\n"
+        "• `*жирный текст*`\n"
+        "• `_курсив_`\n"
+        "• `` `код` ``\n"
+        "• `[ссылка](URL)`\n\n"
+        "🚫 Для отмены отправьте команду /admin",
+        parse_mode='Markdown'
+    )
+
+
+async def send_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE, message_text: str) -> None:
+    """
+    Отправляет сообщение всем пользователям
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        # Получаем аналитику для списка пользователей
+        analytics = context.bot_data.get('analytics')
+        if not analytics:
+            await update.message.reply_text("❌ Система аналитики недоступна")
+            return
+
+        stats = analytics.get_stats()
+        users = stats.get("users", {})
+        
+        if not users:
+            await update.message.reply_text("❌ Пользователи не найдены")
+            return
+
+        # Получаем список уникальных пользователей
+        user_ids = [int(uid) for uid in users.keys()]
+        total_users = len(user_ids)
+        
+        # Подтверждение отправки
+        confirm_message = (
+            f"*📢 Подтверждение массовой рассылки*\n\n"
+            f"**Получателей:** {total_users} пользователей\n\n"
+            f"**Ваше сообщение:**\n"
+            f"```\n{message_text}\n```\n\n"
+            f"⚠️ *Вы уверены, что хотите отправить это сообщение всем пользователям?*"
+        )
+        
+        # Сохраняем текст сообщения для подтверждения
+        context.user_data['broadcast_text'] = message_text
+        context.user_data['broadcast_users'] = user_ids
+        context.user_data['state'] = 'awaiting_broadcast_confirmation'
+        
+        keyboard = [
+            ["✅ Да, отправить", "❌ Отменить"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+        
+        await update.message.reply_text(
+            confirm_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка при подготовке рассылки: {e}")
+        await update.message.reply_text(
+            f"❌ Ошибка при подготовке рассылки:\n{str(e)}"
+        )
+
+
+async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Выполняет массовую рассылку сообщений
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        broadcast_text = context.user_data.get('broadcast_text')
+        user_ids = context.user_data.get('broadcast_users', [])
+        
+        if not broadcast_text or not user_ids:
+            await update.message.reply_text("❌ Данные для рассылки не найдены")
+            return
+
+        # Показываем прогресс
+        progress_message = await update.message.reply_text(
+            f"📤 **Начинаю рассылку...**\n"
+            f"Всего получателей: {len(user_ids)}\n"
+            f"Отправлено: 0/{len(user_ids)}",
+            parse_mode='Markdown'
+        )
+
+        # Статистика отправки
+        sent_count = 0
+        failed_count = 0
+        blocked_count = 0
+        failed_users = []
+
+        # Отправляем сообщения порциями, чтобы не превысить лимиты Telegram
+        import asyncio
+        for i, target_user_id in enumerate(user_ids):
+            try:
+                # Отправляем сообщение пользователю
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=broadcast_text,
+                    parse_mode='Markdown'
+                )
+                sent_count += 1
+                
+                # Обновляем прогресс каждые 10 сообщений
+                if (i + 1) % 10 == 0 or i == len(user_ids) - 1:
+                    await progress_message.edit_text(
+                        f"📤 **Выполняется рассылка...**\n"
+                        f"Всего получателей: {len(user_ids)}\n"
+                        f"✅ Отправлено: {sent_count}\n"
+                        f"❌ Ошибок: {failed_count}\n"
+                        f"🚫 Заблокировали бота: {blocked_count}\n"
+                        f"Прогресс: {i+1}/{len(user_ids)} ({((i+1)/len(user_ids)*100):.1f}%)",
+                        parse_mode='Markdown'
+                    )
+                
+                # Пауза между сообщениями, чтобы не превысить лимиты
+                await asyncio.sleep(0.05)  # 50мс между сообщениями
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                if "blocked" in error_str or "bot was blocked" in error_str:
+                    blocked_count += 1
+                else:
+                    failed_count += 1
+                    failed_users.append((target_user_id, str(e)))
+                
+                logger.warning(f"Не удалось отправить сообщение пользователю {target_user_id}: {e}")
+
+        # Финальный отчет
+        success_rate = (sent_count / len(user_ids)) * 100
+        
+        final_report = (
+            f"📊 **Рассылка завершена!**\n\n"
+            f"**Статистика:**\n"
+            f"• Всего пользователей: {len(user_ids)}\n"
+            f"• ✅ Успешно отправлено: {sent_count}\n"
+            f"• 🚫 Заблокировали бота: {blocked_count}\n"
+            f"• ❌ Ошибки отправки: {failed_count}\n"
+            f"• 📈 Успешность: {success_rate:.1f}%\n\n"
+        )
+        
+        if failed_users:
+            final_report += f"**Пользователи с ошибками:** {len(failed_users)} чел.\n"
+            if len(failed_users) <= 5:
+                for uid, error in failed_users:
+                    final_report += f"• ID {uid}: {error[:50]}...\n"
+            else:
+                final_report += f"• Первые 5 из {len(failed_users)} ошибок:\n"
+                for uid, error in failed_users[:5]:
+                    final_report += f"  - ID {uid}: {error[:40]}...\n"
+        
+        final_report += f"\n⏰ Время выполнения: ~{len(user_ids) * 0.05:.1f} сек."
+
+        await progress_message.edit_text(final_report, parse_mode='Markdown')
+        
+        # Логируем рассылку
+        analytics = context.bot_data.get('analytics')
+        if analytics:
+            analytics.log_user_activity(user_id, "broadcast_message", 
+                                       f"Отправлено {sent_count}/{len(user_ids)} сообщений")
+
+        # Очищаем состояние
+        context.user_data.pop('broadcast_text', None)
+        context.user_data.pop('broadcast_users', None)
+        context.user_data.pop('state', None)
+
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении рассылки: {e}")
+        await update.message.reply_text(
+            f"❌ Критическая ошибка при рассылке:\n{str(e)}"
+        )
+        # Очищаем состояние при ошибке
+        context.user_data.pop('broadcast_text', None)
+        context.user_data.pop('broadcast_users', None)
+        context.user_data.pop('state', None)
+
+
+async def text_logs_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик для просмотра логов текстовых сообщений
+    """
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    keyboard = [
+        ["📊 Статистика текстов", "🔍 Поиск в текстах"],
+        ["👤 Сообщения пользователя", "📋 Последние сообщения"],
+        ["🧹 Очистка старых логов", "📈 Анализ активности"],
+        ["🔙 Назад в админ-панель"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "*📝 Логи текстовых сообщений*\n\n"
+        "Выберите действие:\n"
+        "• 📊 *Статистика текстов* - общая статистика сообщений\n"
+        "• 🔍 *Поиск в текстах* - поиск по содержимому сообщений\n"
+        "• 👤 *Сообщения пользователя* - история конкретного пользователя\n"
+        "• 📋 *Последние сообщения* - недавние текстовые сообщения\n"
+        "• 🧹 *Очистка старых логов* - удаление старых записей\n"
+        "• 📈 *Анализ активности* - паттерны использования\n\n"
+        "💡 _Все текстовые сообщения логируются в SQLite базу_",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def text_logs_statistics_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает статистику текстовых логов
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from services.text_logging_service import get_text_logging_service
+        
+        text_logger = get_text_logging_service()
+        stats = text_logger.get_statistics()
+        
+        if not stats:
+            await update.message.reply_text("❌ Статистика недоступна")
+            return
+
+        message = "*📊 Статистика текстовых сообщений*\n\n"
+        
+        # Основные цифры
+        message += f"**Общая статистика:**\n"
+        message += f"• Всего сообщений: {stats.get('total_messages', 0)}\n"
+        message += f"• Уникальных пользователей: {stats.get('unique_users', 0)}\n"
+        message += f"• За последние 24 часа: {stats.get('messages_24h', 0)}\n\n"
+        
+        # Статистика по типам
+        message_types = stats.get('message_types', {})
+        if message_types:
+            message += f"**По типам сообщений:**\n"
+            for msg_type, count in list(message_types.items())[:7]:  # Топ-7
+                type_emoji = {
+                    'text': '💬',
+                    'command': '⚡',
+                    'admin_input': '👑',
+                    'search_query': '🔍',
+                    'feedback': '📝',
+                    'broadcast_input': '📢'
+                }.get(msg_type, '📄')
+                message += f"• {type_emoji} {msg_type}: {count}\n"
+            message += "\n"
+        
+        # Топ активных пользователей
+        top_users = stats.get('top_users', [])
+        if top_users:
+            message += f"**Топ активных пользователей:**\n"
+            for i, user in enumerate(top_users[:5], 1):
+                username_display = f"@{user['username']}" if user['username'] else f"ID {user['user_id']}"
+                message += f"{i}. {username_display}: {user['message_count']} сообщений\n"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Ошибка в статистике текстов: {e}")
+        await update.message.reply_text(f"❌ Ошибка при получении статистики:\n{str(e)}")
+
+
+async def search_in_texts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик поиска в текстовых сообщениях
+    """
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    # Устанавливаем состояние ожидания поискового запроса
+    context.user_data['state'] = 'awaiting_text_search_query'
+
+    await update.message.reply_text(
+        "*🔍 Поиск в текстовых сообщениях*\n\n"
+        "Отправьте слово или фразу для поиска в логах текстовых сообщений.\n\n"
+        "⚠️ *Внимание:* Поиск производится по ВСЕМ сохраненным сообщениям!\n\n"
+        "💡 Примеры запросов:\n"
+        "• `товар` - найти сообщения со словом 'товар'\n"
+        "• `/start` - найти команды старта\n"
+        "• `ошибка` - найти жалобы на ошибки\n\n"
+        "🚫 Для отмены отправьте команду /admin",
+        parse_mode='Markdown'
+    )
+
+
+async def user_messages_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик просмотра сообщений конкретного пользователя
+    """
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    # Устанавливаем состояние ожидания ID пользователя
+    context.user_data['state'] = 'awaiting_user_messages_id'
+
+    await update.message.reply_text(
+        "*👤 Сообщения пользователя*\n\n"
+        "Отправьте ID пользователя, чьи сообщения хотите посмотреть.\n\n"
+        "📋 Показываются последние 20 сообщений с временными метками и типами.\n\n"
+        "🚫 Для отмены отправьте команду /admin",
+        parse_mode='Markdown'
+    )
+
+
+async def recent_messages_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает последние текстовые сообщения
+    """
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    try:
+        from services.text_logging_service import get_text_logging_service
+        import sqlite3
+        
+        text_logger = get_text_logging_service()
+        
+        # Получаем последние 20 сообщений
+        conn = sqlite3.connect(text_logger.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT user_id, username, message_text, timestamp, message_type, is_admin
+            FROM text_messages 
+            ORDER BY timestamp DESC
+            LIMIT 20
+        ''')
+        
+        messages = cursor.fetchall()
+        conn.close()
+        
+        if not messages:
+            await update.message.reply_text("📋 Текстовых сообщений пока нет")
+            return
+
+        message_text = "📋 Последние текстовые сообщения\n\n"
+        
+        for i, msg in enumerate(messages, 1):
+            user_id_msg, username, text, timestamp, msg_type, is_admin_flag = msg
+            
+            # Форматируем время
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                time_str = dt.strftime("%H:%M")
+            except:
+                time_str = timestamp[:16]
+            
+            # Эмодзи для типа сообщения
+            type_emoji = {
+                'text': '💬',
+                'command': '⚡',
+                'admin_input': '👑',
+                'search_query': '🔍',
+                'feedback': '📝',
+                'broadcast_input': '📢'
+            }.get(msg_type, '📄')
+            
+            # Безопасное экранирование текста
+            text_short = text[:50] + "..." if len(text) > 50 else text
+            text_safe = text_short.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
+            
+            # Отметка админа
+            admin_mark = " 👑" if is_admin_flag else ""
+            username_display = f"@{username}" if username else f"ID{user_id_msg}"
+            
+            message_text += f"{i}\\. {type_emoji} {time_str} {username_display}{admin_mark}\n"
+            message_text += f"   {text_safe}\n\n"
+            
+            # Ограничиваем длину сообщения
+            if len(message_text) > 3000:
+                message_text += f"\\.\\.\\. и ещё {len(messages) - i} сообщений"
+                break
+
+        await update.message.reply_text(message_text, parse_mode='MarkdownV2')
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении последних сообщений: {e}")
+        # Отправляем без Markdown при ошибке
+        error_msg = f"❌ Ошибка при получении сообщений: {str(e)}"
+        await update.message.reply_text(error_msg)
+
+
+async def cleanup_old_texts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обработчик очистки старых текстовых логов
+    """
+    user_id = update.effective_user.id
+
+    if not is_admin(user_id):
+        await update.message.reply_text("⛔ Доступ запрещен")
+        return
+
+    keyboard = [
+        ["🗑️ Удалить старше 30 дней", "🗑️ Удалить старше 7 дней"],
+        ["📊 Показать размер базы", "🔙 Назад к логам"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "*🧹 Очистка логов текстовых сообщений*\n\n"
+        "⚠️ *Внимание:* Удаленные логи восстановить невозможно!\n\n"
+        "Выберите период для удаления:\n"
+        "• Старше 30 дней - стандартная очистка\n"
+        "• Старше 7 дней - агрессивная очистка\n"
+        "• Показать размер базы - текущее состояние\n\n"
+        "💡 _Рекомендуется регулярно очищать старые логи_",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def perform_text_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
+    """
+    Выполняет поиск в текстовых сообщениях
+    """
+    try:
+        from services.text_logging_service import get_text_logging_service
+        
+        text_logger = get_text_logging_service()
+        results = text_logger.search_messages(query, limit=20)
+        
+        if not results:
+            await update.message.reply_text(f"🔍 По запросу '{query}' ничего не найдено.")
+            context.user_data.pop('state', None)
+            return
+
+        message_text = f"🔍 Результаты поиска: '{query}'\n\n"
+        message_text += f"Найдено: {len(results)} сообщений\n\n"
+        
+        for i, result in enumerate(results[:15], 1):  # Показываем первые 15
+            user_id_res = result['user_id']
+            username = result['username']
+            text = result['text']
+            timestamp = result['timestamp']
+            msg_type = result['type']
+            
+            # Форматируем время
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                time_str = dt.strftime("%d.%m %H:%M")
+            except:
+                time_str = timestamp[:16]
+            
+            # Подсвечиваем найденный текст (без Markdown)
+            if len(text) > 100:
+                # Находим позицию искомого текста и показываем контекст
+                pos = text.lower().find(query.lower())
+                start = max(0, pos - 30)
+                end = min(len(text), pos + len(query) + 30)
+                context_text = text[start:end]
+                if start > 0:
+                    context_text = "..." + context_text
+                if end < len(text):
+                    context_text = context_text + "..."
+                display_text = context_text
+            else:
+                display_text = text
+            
+            # Безопасное экранирование всех специальных символов
+            text_safe = display_text.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
+            
+            username_display = f"@{username}" if username else f"ID{user_id_res}"
+            
+            message_text += f"{i}\\. {time_str} {username_display} \\({msg_type}\\)\n"
+            message_text += f"   {text_safe}\n\n"
+            
+            # Ограничиваем длину сообщения
+            if len(message_text) > 3000:
+                message_text += f"\\.\\.\\. и ещё {len(results) - i} результатов"
+                break
+
+        await update.message.reply_text(message_text, parse_mode='MarkdownV2')
+        
+        # Очищаем состояние
+        context.user_data.pop('state', None)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при поиске в текстах: {e}")
+        # Отправляем без Markdown при ошибке
+        error_msg = f"❌ Ошибка при поиске: {str(e)}"
+        await update.message.reply_text(error_msg)
+        context.user_data.pop('state', None)
+
+
+async def show_user_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, target_user_id: int) -> None:
+    """
+    Показывает сообщения конкретного пользователя
+    """
+    try:
+        from services.text_logging_service import get_text_logging_service
+        
+        text_logger = get_text_logging_service()
+        messages = text_logger.get_user_messages(target_user_id, limit=20)
+        
+        if not messages:
+            await update.message.reply_text(f"👤 У пользователя ID {target_user_id} нет текстовых сообщений.")
+            context.user_data.pop('state', None)
+            return
+
+        message_text = f"👤 Сообщения пользователя ID {target_user_id}\n\n"
+        message_text += f"Всего найдено: {len(messages)} сообщений\n\n"
+        
+        for i, msg in enumerate(messages, 1):
+            timestamp = msg['timestamp']
+            text = msg['text']
+            msg_type = msg['type']
+            state = msg['state']
+            
+            # Форматируем время
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                time_str = dt.strftime("%d.%m %H:%M")
+            except:
+                time_str = timestamp[:16]
+            
+            # Эмодзи для типа сообщения
+            type_emoji = {
+                'text': '💬',
+                'command': '⚡',
+                'admin_input': '👑',
+                'search_query': '🔍',
+                'feedback': '📝',
+                'broadcast_input': '📢'
+            }.get(msg_type, '📄')
+            
+            # Безопасное экранирование текста
+            text_short = text[:80] + "..." if len(text) > 80 else text
+            # Полное экранирование всех специальных символов Markdown
+            text_safe = text_short.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('`', '\\`').replace('[', '\\[').replace(']', '\\]').replace('(', '\\(').replace(')', '\\)').replace('~', '\\~').replace('>', '\\>').replace('#', '\\#').replace('+', '\\+').replace('-', '\\-').replace('=', '\\=').replace('|', '\\|').replace('{', '\\{').replace('}', '\\}').replace('.', '\\.').replace('!', '\\!')
+            
+            state_info = f" [{state}]" if state and state != 'none' else ""
+            
+            message_text += f"{i}\\. {type_emoji} {time_str}{state_info}\n"
+            message_text += f"   {text_safe}\n\n"
+            
+            # Ограничиваем длину сообщения
+            if len(message_text) > 3000:
+                message_text += f"\\.\\.\\. и ещё {len(messages) - i} сообщений"
+                break
+
+        await update.message.reply_text(message_text, parse_mode='MarkdownV2')
+        
+        # Очищаем состояние
+        context.user_data.pop('state', None)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении сообщений пользователя {target_user_id}: {e}")
+        # Отправляем без Markdown при ошибке
+        error_msg = f"❌ Ошибка при получении сообщений: {str(e)}"
+        await update.message.reply_text(error_msg)
+        context.user_data.pop('state', None)

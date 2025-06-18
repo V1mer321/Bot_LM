@@ -49,6 +49,7 @@ bot.log
 config.json
 .env
 *.encrypted
+key.key
 
 # Cache
 cache/
@@ -82,4 +83,20 @@ htmlcov/
 # MyPy
 .mypy_cache/
 .dmypy.json
-dmypy.json 
+dmypy.json
+
+# Railway specific
+.railway/
+
+# Large files (for deployment optimization)
+*.pt
+*.pth
+*.h5
+*.pkl
+yolov8n.pt
+clip_image_search_index.pkl
+image_search_index.pkl
+
+# Exclude sensitive documents
+*.docx
+*.pdf 

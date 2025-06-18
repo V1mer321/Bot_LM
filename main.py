@@ -9,7 +9,8 @@ from handlers.photo_handler import (
     handle_photo, handle_department_selection, get_database_stats,
     handle_correct_feedback, handle_incorrect_feedback, 
     handle_new_item_request, handle_specify_correct_item,
-    handle_text_message
+    handle_text_message, photo_search_handler, department_selection_handler,
+    back_to_departments_handler
 )
 from handlers.admin_training_handler import (
     admin_training_stats_command, admin_start_training_command,
@@ -34,20 +35,29 @@ BOT_TOKEN = "7655889200:AAGuXvXkz7Rk4zULnGj5gQxGtOGGH2eKZvU"
 
 async def start(update: Update, context):
     """Обработчик команды /start"""
+    from telegram import ReplyKeyboardMarkup
+    
+    # ИСПРАВЛЕНИЕ: Добавляем главное меню с кнопкой поиска по фото
+    keyboard = [
+        ["📸 Поиск по фото"],
+        ["📊 Статистика БД", "ℹ️ Помощь"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
     welcome_message = """
 🤖 Привет! Я бот для поиска товаров по фотографии!
 
-📸 Отправьте мне фотографию товара, и я найду похожие позиции в нашем каталоге.
+📸 Нажмите "Поиск по фото", выберите отдел и отправьте фотографию товара - я найду похожие позиции в каталоге.
 
 🔍 Функции:
 • Поиск по изображению с высокой точностью
+• Фильтрация по отделам для лучших результатов
 • Отображение процента схожести
 • Быстрый доступ к товарам
-• Распределение по отделам
 
-💡 Просто отправьте фото и получите результаты!
+💡 Сначала выберите отдел, затем отправьте фото!
 """
-    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 async def admin_help_command(update: Update, context):
     """Обработчик команды /admin_help - справка для администраторов"""
@@ -96,9 +106,15 @@ async def help_command(update: Update, context):
 1. 📸 Отправьте фотографию товара
 2. ⏳ Дождитесь результатов поиска
 3. 📊 Просмотрите найденные товары с процентом схожести
-4. 🔗 Перейдите на страницу товара или выберите отдел
+4. ✅ Оцените результаты с помощью кнопок
+5. 🔗 Перейдите на страницу товара или выберите отдел
 
-Отделы товаров:
+🎯 После каждого поиска используйте кнопки:
+• ✅ Правильно - если найден нужный товар
+• ❌ Неточно - если результат не подходит
+• ➕ Добавить товар - предложить новый товар в каталог
+
+🏪 Отделы товаров:
 • 🧱 Строительные материалы
 • 🪑 Столярные изделия
 • ⚡ Электрика
@@ -110,16 +126,16 @@ async def help_command(update: Update, context):
 • 🛠️ Инструмент
 • 🧽 Хозтовары
 
-Команды:
+📋 Команды:
 /start - Начать работу
 /help - Показать справку
 /stats - Статистика базы данных
 
-🧠 Помогайте улучшать поиск:
-• ✅/❌ Оценивайте качество найденных товаров
-• ➕ Предлагайте новые товары для каталога
-• 🎯 Указывайте правильные товары при неточном поиске
-• 📝 Оставляйте комментарии для улучшения системы"""
+🧠 Ваши оценки помогают улучшать поиск:
+• Бот запоминает ваши предпочтения
+• Качество поиска постоянно улучшается
+• Каталог товаров расширяется благодаря вашим предложениям
+• Чем больше оценок - тем точнее результаты!"""
     await update.message.reply_text(help_text)
 
 async def stats_command(update: Update, context):
@@ -175,24 +191,65 @@ def main():
         # Обработчик фотографий
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         
-        # Обработчик текстовых сообщений
+        # ИСПРАВЛЕНИЕ: Добавляем обработчики для выбора отделов
+        # Обработчик кнопки "📸 Поиск по фото"
+        application.add_handler(MessageHandler(filters.Text("📸 Поиск по фото"), photo_search_handler))
+        
+        # Обработчики выбора отделов (должны быть ПЕРЕД общим обработчиком текста)
+        application.add_handler(MessageHandler(filters.Text("🔍 Поиск по всем отделам"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🛠️ ИНСТРУМЕНТЫ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🎨 КРАСКИ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🚰 САНТЕХНИКА"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🧱 СТРОЙМАТЕРИАЛЫ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🏠 НАПОЛЬНЫЕ ПОКРЫТИЯ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🌿 САД"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("💡 СВЕТ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("⚡ ЭЛЕКТРОТОВАРЫ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🏠 ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🚿 ВОДОСНАБЖЕНИЕ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🔩 СКОБЯНЫЕ ИЗДЕЛИЯ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🗄️ ХРАНЕНИЕ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🏠 СТОЛЯРНЫЕ ИЗДЕЛИЯ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🍽️ КУХНИ"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Text("🏢 ПЛИТКА"), department_selection_handler))
+        
+        # Обработчики возврата к выбору отдела
+        application.add_handler(MessageHandler(filters.Text("🔙 Назад к выбору отдела"), back_to_departments_handler))
+        application.add_handler(MessageHandler(filters.Text("🔙 Назад в меню"), start))
+        
+        # Обработчики кнопок главного меню
+        application.add_handler(MessageHandler(filters.Text("📊 Статистика БД"), stats_command))
+        application.add_handler(MessageHandler(filters.Text("ℹ️ Помощь"), help_command))
+        
+        # Обработчик остальных текстовых сообщений (должен быть ПОСЛЕДНИМ)
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
         
         # Обработчик callback-запросов (для кнопок)
         def create_callback_handler():
             async def callback_router(update: Update, context):
                 query = update.callback_query
+                logger.info(f"🔍 Получен callback: {query.data} от пользователя {query.from_user.id}")
+                
                 if query.data.startswith("correct_"):
+                    logger.info("➡️ Направляем в handle_correct_feedback")
                     await handle_correct_feedback(update, context)
                 elif query.data.startswith("incorrect_"):
+                    logger.info("➡️ Направляем в handle_incorrect_feedback")
                     await handle_incorrect_feedback(update, context)
                 elif query.data.startswith("new_item_"):
+                    logger.info("➡️ Направляем в handle_new_item_request")
                     await handle_new_item_request(update, context)
                 elif query.data.startswith("specify_correct_"):
+                    logger.info("➡️ Направляем в handle_specify_correct_item")
                     await handle_specify_correct_item(update, context)
-                elif query.data.startswith("admin_"):
+                elif query.data.startswith("search_dept_"):
+                    logger.info("➡️ Направляем в handle_department_selection (поиск по отделу)")
+                    await handle_department_selection(update, context)
+                elif query.data.startswith("admin_") or query.data.startswith("fill_product_data_") or query.data.startswith("reject_product_"):
+                    logger.info("➡️ Направляем в handle_admin_callback")
                     await handle_admin_callback(update, context)
                 else:
+                    logger.info("➡️ Направляем в handle_department_selection")
                     await handle_department_selection(update, context)
             return callback_router
         

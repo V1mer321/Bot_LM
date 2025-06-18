@@ -5,9 +5,10 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from toolbot.config import is_allowed_user  # Используем зашифрованную конфигурацию (безопасно)
+from toolbot.config import is_allowed_user, is_admin  # Используем зашифрованную конфигурацию (безопасно)
 from toolbot.handlers.admin import process_admin_text_input
 from toolbot.services.data_service import search_in_colors, search_in_stores, search_in_skobyanka
+from services.text_logging_service import get_text_logging_service
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,47 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user_id = update.effective_user.id
     text = update.message.text
     username = update.effective_user.username or "пользователь"
+    first_name = update.effective_user.first_name or ""
+    last_name = update.effective_user.last_name or ""
+    chat_id = update.effective_chat.id
     
-    # Логируем текстовое сообщение от пользователя (кроме чувствительных данных)
+    # Получаем состояние пользователя
+    user_state = context.user_data.get('state', 'none')
+    
+    # Определяем тип сообщения
+    message_type = 'text'
+    if text.startswith('/'):
+        message_type = 'command'
+    elif user_state and 'admin' in user_state:
+        message_type = 'admin_input'
+    elif user_state and 'search' in user_state:
+        message_type = 'search_query'
+    elif user_state and 'feedback' in user_state:
+        message_type = 'feedback'
+    elif user_state and 'broadcast' in user_state:
+        message_type = 'broadcast_input'
+    
+    # Логируем в SQLite базу (ПОЛНЫЙ ТЕКСТ)
+    try:
+        text_logger = get_text_logging_service()
+        text_logger.log_text_message(
+            user_id=user_id,
+            message_text=text,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            chat_id=chat_id,
+            message_type=message_type,
+            is_admin=is_admin(user_id),
+            user_state=user_state
+        )
+    except Exception as e:
+        logger.error(f"❌ Ошибка при логировании текста в SQLite: {e}")
+    
+    # Логируем текстовое сообщение от пользователя в аналитику (кроме чувствительных данных)
     analytics = context.bot_data.get('analytics')
     if analytics:
-        # Логируем только первые 50 символов для безопасности
+        # Логируем только первые 50 символов для безопасности в аналитику
         text_preview = text[:50] + "..." if len(text) > 50 else text
         analytics.log_user_activity(user_id, "text_message", f"@{username}: {text_preview}")
     

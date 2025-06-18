@@ -60,7 +60,10 @@ from toolbot.handlers.admin import (admin_panel_handler, user_management_handler
                                   system_dashboard_handler, active_users_realtime_handler,
                                   performance_monitoring_handler, back_to_monitoring_handler,
                                   metrics_history_handler, alerts_notifications_handler,
-                                  monitoring_settings_handler)
+                                  monitoring_settings_handler, broadcast_message_handler,
+                                  text_logs_handler, text_logs_statistics_handler,
+                                  search_in_texts_handler, user_messages_handler,
+                                  recent_messages_handler, cleanup_old_texts_handler)
 from toolbot.handlers.contacts import (contacts_handler, stores_handler, maps_handler,
                                      skobyanka_handler, back_to_contacts_handler)
 # Используем РЕАЛЬНЫЙ photo_handler который работает с unified_products.db
@@ -75,7 +78,9 @@ from handlers.admin_training_handler import (admin_training_stats_command, admin
                                             admin_view_examples_command, admin_manage_new_products_command,
                                             handle_admin_callback)
 # Используем тестовые обработчики только для навигации  
-from toolbot.handlers.photo_handler import photo_search_handler, department_selection_handler, back_to_departments_handler
+# ИСПРАВЛЕНИЕ: Используем правильный photo_handler из корневой директории handlers
+from handlers.photo_handler import (photo_search_handler, department_selection_handler, 
+                                   back_to_departments_handler, handle_photo)
 from toolbot.handlers.text_handler import text_handler
 # Импортируем обработчики обратной связи
 from toolbot.handlers.feedback_handlers import (report_error_handler, suggest_improvement_handler,
@@ -166,6 +171,8 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^❓ Помощь$"), help_handler))
         application.add_handler(MessageHandler(filters.Regex("^📞 Контакты$"), contacts_handler))
         application.add_handler(MessageHandler(filters.Regex("^📸 Поиск по фото$"), photo_search_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📊 Статистика БД$"), search_statistics_handler))
+        application.add_handler(MessageHandler(filters.Regex("^ℹ️ Помощь$"), help_handler))
         
         # Кнопки навигации
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в меню$"), back_to_menu_handler))
@@ -176,8 +183,28 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^🔧 Скобянка$"), skobyanka_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад в контакты$"), back_to_contacts_handler))
         
-        # Кнопки выбора отдела для поиска по фото
-        application.add_handler(MessageHandler(filters.Regex("^🧱 Строительные материалы$|^🪑 Столярные изделия$|^⚡ Электротовары$|^🔨 Инструменты$|^🏠 Напольные покрытия$|^🧱 Плитка$|^🚽 Сантехника$|^🚿 Водоснабжение$|^🌱 Сад$|^🔩 Скобяные изделия$|^🎨 Краски$|^✨ Отделочные материалы$|^💡 Свет$|^📦 Хранение$|^🍳 Кухни$"), department_selection_handler))
+        # ИСПРАВЛЕНИЕ: Правильные обработчики выбора отделов для поиска по фото
+        # Обработчик кнопки "🔍 Поиск по всем отделам"
+        application.add_handler(MessageHandler(filters.Regex("^🔍 Поиск по всем отделам$"), department_selection_handler))
+        
+        # Обработчики конкретных отделов (названия должны точно совпадать с DEPARTMENTS в photo_handler.py)
+        application.add_handler(MessageHandler(filters.Regex("^🛠️ ИНСТРУМЕНТЫ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🎨 КРАСКИ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🚰 САНТЕХНИКА$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🧱 СТРОЙМАТЕРИАЛЫ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🏠 НАПОЛЬНЫЕ ПОКРЫТИЯ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🌿 САД$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^💡 СВЕТ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^⚡ ЭЛЕКТРОТОВАРЫ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🏠 ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🚿 ВОДОСНАБЖЕНИЕ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🔩 СКОБЯНЫЕ ИЗДЕЛИЯ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🗄️ ХРАНЕНИЕ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🏠 СТОЛЯРНЫЕ ИЗДЕЛИЯ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🍽️ КУХНИ$"), department_selection_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🏢 ПЛИТКА$"), department_selection_handler))
+        
+        # Обработчик возврата к выбору отдела
         application.add_handler(MessageHandler(filters.Regex("^🔙 Назад к выбору отдела$"), back_to_departments_handler))
         
         # Кнопки админ-панели
@@ -186,6 +213,8 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^📊 Статистика поиска$"), search_statistics_handler))
         application.add_handler(MessageHandler(filters.Regex("^👀 Активность пользователей$"), user_activity_handler))
         application.add_handler(MessageHandler(filters.Regex("^👑 Добавить администратора$"), add_admin_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📢 Отправить сообщение всем$"), broadcast_message_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📝 Логи текстов$"), text_logs_handler))
         application.add_handler(MessageHandler(filters.Regex("^🔄 Обновить базы$"), update_databases_handler))
         application.add_handler(MessageHandler(filters.Regex("^🕒 Real-time мониторинг$"), realtime_monitoring_handler))
         application.add_handler(MessageHandler(filters.Regex("^📋 Список пользователей$"), list_users_handler))
@@ -213,6 +242,13 @@ def register_handlers(application):
         application.add_handler(MessageHandler(filters.Regex("^🔄 Обновить данные$"), search_statistics_handler))
         application.add_handler(MessageHandler(filters.Regex("^📝 Последние жалобы$"), recent_complaints_handler))
         application.add_handler(MessageHandler(filters.Regex("^📈 Тренды поиска$"), search_statistics_handler))
+        
+        # Кнопки раздела логов текстов
+        application.add_handler(MessageHandler(filters.Regex("^📊 Статистика текстов$"), text_logs_statistics_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🔍 Поиск в текстах$"), search_in_texts_handler))
+        application.add_handler(MessageHandler(filters.Regex("^👤 Сообщения пользователя$"), user_messages_handler))
+        application.add_handler(MessageHandler(filters.Regex("^📋 Последние сообщения$"), recent_messages_handler))
+        application.add_handler(MessageHandler(filters.Regex("^🧹 Очистка старых логов$"), cleanup_old_texts_handler))
         
         # Кнопки раздела обратной связи в админ панели
         application.add_handler(MessageHandler(filters.Regex("^📊 Статистика обратной связи$"), feedback_stats_button_handler))
@@ -243,7 +279,7 @@ def register_handlers(application):
         application.add_handler(CallbackQueryHandler(handle_incorrect_feedback, pattern=r"^incorrect_"))
         application.add_handler(CallbackQueryHandler(handle_new_item_request, pattern=r"^new_item_"))
         application.add_handler(CallbackQueryHandler(handle_specify_correct_item, pattern=r"^specify_correct_"))
-        application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern=r"^admin_"))
+        application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern=r"^(admin_|fill_product_data_|reject_product_)"))
         
         # Команды для администраторов (обратная связь)
         application.add_handler(CommandHandler("feedback_stats", view_feedback_stats_handler))
@@ -258,8 +294,8 @@ def register_handlers(application):
         application.add_handler(CommandHandler("admin_view_examples", admin_view_examples_command))
         application.add_handler(CommandHandler("admin_new_products", admin_manage_new_products_command))
         
-        # Обработчик фотографий (используем toolbot.handlers.photo_handler)
-        application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+        # ИСПРАВЛЕНИЕ: Обработчик фотографий (используем правильный handlers.photo_handler)
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         
         # Обработчики для мониторинга надежности
         application.add_handler(CommandHandler("error_stats", error_stats_handler))

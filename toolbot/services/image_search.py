@@ -147,6 +147,10 @@ class ImageSearchService:
             image = Image.open(img_path).convert('RGB')
             inputs = self.clip_processor(images=image, return_tensors="pt")
             
+            # Переносим тензоры на то же устройство что и модель
+            device = next(self.clip_model.parameters()).device
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            
             # Извлекаем признаки
             with torch.no_grad():
                 image_features = self.clip_model.get_image_features(**inputs)

@@ -1,0 +1,41 @@
+# Core dependencies для Railway (оптимизированные)
+python-telegram-bot>=20.7
+pandas>=2.2.3
+numpy>=2.0.0
+Pillow>=10.0.0
+requests>=2.31.0
+
+# Легкие ML библиотеки
+transformers>=4.37.0
+torch>=2.2.0+cpu  
+torchvision>=0.15.2+cpu
+
+# Заменяем тяжелые зависимости на легкие
+# faiss-cpu заменяем на sklearn для векторного поиска
+scikit-learn>=1.3.0
+
+# Image processing (только необходимое)
+opencv-python-headless>=4.8.0
+
+# Logging
+python-json-logger>=2.0.7
+
+# Async operations
+aiohttp>=3.8.5
+
+# Additional dependencies
+python-dotenv>=1.0.0
+cryptography>=41.0.0
+
+# Development tools
+tqdm>=4.66.0
+
+# Monitoring (легкие версии)
+psutil>=5.9.0
+
+# Исключаем тяжелые зависимости для Railway:
+# - CLIP (заменим на простой поиск)
+# - YOLO (ultralytics)
+# - Redis, MongoDB (используем локальные файлы)
+# - FastAPI, uvicorn (не нужны для бота)
+# - PyTorch GPU версии 

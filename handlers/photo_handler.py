@@ -1,13 +1,14 @@
 import os
 import logging
 import hashlib
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
 # Ленивая инициализация сервиса поиска (инициализируется только при первом использовании)
 _unified_db_service = None
+_department_search_service = None
 
 def get_unified_db_service():
     """Получение экземпляра сервиса с ленивой инициализацией"""
@@ -22,6 +23,20 @@ def get_unified_db_service():
             logger.error(f"Ошибка при инициализации UnifiedDatabaseService: {e}")
             raise
     return _unified_db_service
+
+def get_department_search_service():
+    """Получение экземпляра сервиса поиска по отделам"""
+    global _department_search_service
+    if _department_search_service is None:
+        try:
+            logger.info("Ленивая инициализация DepartmentSearchService...")
+            from services.department_search_service import DepartmentSearchService
+            _department_search_service = DepartmentSearchService()
+            logger.info("✓ DepartmentSearchService успешно инициализирован")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации DepartmentSearchService: {e}")
+            raise
+    return _department_search_service
 
 def get_stats_service():
     """Получение экземпляра сервиса статистики"""
@@ -43,19 +58,114 @@ def safe_callback_data(data):
         return data[:60] + "..."
     return data
 
-# Определение отделов
-DEPARTMENTS = [
-    "🧱 Строительные материалы",
-    "🪑 Столярные изделия", 
-    "⚡ Электрика",
-    "🔧 Сантехника",
-    "🎨 Краски и лаки",
-    "🔩 Крепёж и метизы",
-    "🚪 Двери, окна",
-    "🏠 Кровля",
-    "🛠️ Инструмент",
-    "🧽 Хозтовары"
-]
+# Определение отделов - сопоставляем с реальными отделами из БД
+DEPARTMENTS = {
+    "🛠️ ИНСТРУМЕНТЫ": "ИНСТРУМЕНТЫ",
+    "🎨 КРАСКИ": "КРАСКИ", 
+    "🚰 САНТЕХНИКА": "САНТЕХНИКА",
+    "🧱 СТРОЙМАТЕРИАЛЫ": "СТРОЙМАТЕРИАЛЫ",
+    "🏠 НАПОЛЬНЫЕ ПОКРЫТИЯ": "НАПОЛЬНЫЕ ПОКРЫТИЯ",
+    "🌿 САД": "САД",
+    "💡 СВЕТ": "СВЕТ",
+    "⚡ ЭЛЕКТРОТОВАРЫ": "ЭЛЕКТРОТОВАРЫ",
+    "🏠 ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ": "ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ",
+    "🚿 ВОДОСНАБЖЕНИЕ": "ВОДОСНАБЖЕНИЕ",
+    "🔩 СКОБЯНЫЕ ИЗДЕЛИЯ": "СКОБЯНЫЕ ИЗДЕЛИЯ",
+    "🗄️ ХРАНЕНИЕ": "ХРАНЕНИЕ",
+    "🏠 СТОЛЯРНЫЕ ИЗДЕЛИЯ": "СТОЛЯРНЫЕ ИЗДЕЛИЯ",
+    "🍽️ КУХНИ": "КУХНИ",
+    "🏢 ПЛИТКА": "ПЛИТКА"
+}
+
+# Обработчики для системы выбора отделов
+async def photo_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик кнопки 'Поиск по фото' - показывает выбор отделов"""
+    # Создаем клавиатуру с отделами и кнопкой "Поиск по всем отделам"
+    keyboard = []
+    
+    # Добавляем кнопку поиска по всем отделам
+    keyboard.append(["🔍 Поиск по всем отделам"])
+    
+    # Добавляем кнопки отделов
+    dept_buttons = list(DEPARTMENTS.keys())
+    for i in range(0, len(dept_buttons), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(dept_buttons):
+                row.append(dept_buttons[i + j])
+        keyboard.append(row)
+    
+    # Добавляем кнопку возврата в меню
+    keyboard.append(["🔙 Назад в меню"])
+    
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "🏪 *Выберите отдел для поиска:*\n\n"
+        "• 🛠️ ИНСТРУМЕНТЫ - молотки, отвертки, дрели и т.д.\n"
+        "• 🎨 КРАСКИ - эмали, лаки, грунтовки и т.д.\n"
+        "• 🚰 САНТЕХНИКА - унитазы, раковины, ванны и т.д.\n"
+        "• 🧱 СТРОЙМАТЕРИАЛЫ - кирпич, блоки, цемент и т.д.\n"
+        "• 🏠 НАПОЛЬНЫЕ ПОКРЫТИЯ - ламинат, линолеум и т.д.\n"
+        "• 🌿 САД - инструменты, удобрения, семена и т.д.\n"
+        "• 💡 СВЕТ - лампы, светильники, люстры и т.д.\n"
+        "• ⚡ ЭЛЕКТРОТОВАРЫ - кабели, розетки и т.д.\n"
+        "• 🏠 ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ - обои, штукатурка и т.д.\n"
+        "• 🚿 ВОДОСНАБЖЕНИЕ - трубы, фитинги, краны и т.д.\n"
+        "• 🔩 СКОБЯНЫЕ ИЗДЕЛИЯ - гвозди, шурупы, болты и т.д.\n"
+        "• 🗄️ ХРАНЕНИЕ - полки, ящики, стеллажи и т.д.\n"
+        "• 🏠 СТОЛЯРНЫЕ ИЗДЕЛИЯ - доски, брус, фанера и т.д.\n"
+        "• 🍽️ КУХНИ - кухонная мебель и аксессуары\n"
+        "• 🏢 ПЛИТКА - керамическая, керамогранит и т.д.\n\n"
+        "💡 Выбор отдела поможет получить более точные результаты",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def department_selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик выбора отдела для поиска по фото"""
+    selected_department = update.message.text
+    
+    # ИСПРАВЛЕНИЕ: Добавляем логирование выбора отдела
+    logger.info(f"🏪 ВЫБОР ОТДЕЛА пользователем {update.effective_user.id}: '{selected_department}'")
+    
+    # Сохраняем выбранный отдел в контексте пользователя
+    context.user_data["selected_department"] = selected_department
+    
+    # ИСПРАВЛЕНИЕ: Устанавливаем состояние ожидания фото
+    context.user_data["state"] = "awaiting_photo"
+    
+    # ИСПРАВЛЕНИЕ: Проверяем, что отдел сохранился
+    saved_department = context.user_data.get("selected_department")
+    logger.info(f"✅ СОХРАНЕН отдел в контексте: '{saved_department}'")
+    logger.info(f"✅ УСТАНОВЛЕНО состояние: awaiting_photo")
+    
+    # Получаем эмодзи отдела
+    department_emoji = selected_department.split()[0]
+    
+    # Создаем клавиатуру для возврата
+    keyboard = [["🔙 Назад к выбору отдела"], ["🔙 Назад в меню"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        f"{department_emoji} *Поиск в отделе {selected_department}*\n\n"
+        f"Теперь отправьте фотографию товара для поиска.\n\n"
+        f"💡 Советы для лучшего результата:\n"
+        f"• Фотографируйте в хорошем освещении\n"
+        f"• Держите камеру параллельно товару\n"
+        f"• Избегайте теней и отражений\n"
+        f"• Следите, чтобы товар занимал большую часть кадра",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+async def back_to_departments_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик возврата к выбору отдела"""
+    # Сбрасываем выбранный отдел
+    context.user_data.pop('selected_department', None)
+    
+    # Показываем меню выбора отделов
+    await photo_search_handler(update, context)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка фотографий от пользователей"""
@@ -72,6 +182,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
         except Exception as e:
             logger.warning(f"Ошибка логирования активности: {e}")
+
+        # Проверяем, выбран ли отдел
+        selected_department = context.user_data.get('selected_department')
+        if not selected_department:
+            await update.message.reply_text(
+                "❓ Сначала выберите отдел для поиска!\n\n"
+                "📋 Нажмите кнопку '📸 Поиск по фото' в главном меню, "
+                "затем выберите отдел и после этого отправьте фотографию."
+            )
+            return
+        
+        # Показываем сообщение о начале обработки
+        dept_emoji = selected_department.split()[0] if selected_department else "📸"
+        processing_msg = await update.message.reply_text(
+            f"{dept_emoji} Анализирую изображение для отдела {selected_department}...\n"
+            "⏳ Это может занять несколько секунд."
+        )
         
         photo = update.message.photo[-1]  # Берем фото наибольшего размера
         file = await context.bot.get_file(photo.file_id)
@@ -83,114 +210,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo_path = f'temp/{photo.file_id}.jpg'
         await file.download_to_drive(photo_path)
         
-        # Отправляем сообщение о начале поиска
-        loading_message = await update.message.reply_text("🔍 Анализирую изображение и ищу похожие товары...")
+        # Сохраняем путь к фото для дальнейшего использования
+        short_id = get_short_id(photo.file_id)
         
-        # Ищем похожие товары с проверкой стабильности результатов
-        unified_db_service = get_unified_db_service()
-        search_method = "stable"
-        similar_products = unified_db_service.search_with_stability_check(photo_path, top_k=5)
-        
-        # Если стабильный поиск не дал результатов, пробуем обычный поиск с пониженными порогами
-        if not similar_products:
-            logger.info("Стабильный поиск не дал результатов, пробуем обычный поиск...")
-            search_method = "threshold"
-            similar_products = unified_db_service.search_with_multiple_thresholds(photo_path, top_k=5)
-        
-        # Если и обычный поиск не дал результатов, пробуем агрессивный поиск
-        if not similar_products:
-            logger.info("Обычный поиск не дал результатов, пробуем агрессивный поиск...")
-            search_method = "aggressive"
-            similar_products = unified_db_service.aggressive_search(photo_path, top_k=5)
-            
-            # Если агрессивный поиск дал результаты, добавляем предупреждение о низкой точности
-            if similar_products:
-                await update.message.reply_text(
-                    "⚠️ *Внимание:* найдены результаты с низкой схожестью.\n"
-                    "Возможно, эти товары не совсем соответствуют вашему запросу."
-                )
-        
-        # Логируем сессию поиска
-        stats_service = get_stats_service()
-        if stats_service:
-            user_id = update.effective_user.id
-            username = update.effective_user.username or update.effective_user.first_name
-            session_id = stats_service.log_search_session(
-                user_id=user_id,
-                username=username,
-                photo_file_id=photo.file_id,
-                results=similar_products or [],
-                search_method=search_method
-            )
-            
-            # Сохраняем контекст поиска для кнопки "Это не мой товар"
-            # Используем короткий ID для callback_data, но сохраняем полный контекст
-            short_id = get_short_id(photo.file_id)
-            context.user_data[f'search_session_{short_id}'] = {
-                'session_id': session_id,
-                'user_id': user_id,
-                'username': username,
-                'photo_file_id': photo.file_id,  # Полный file_id для логирования
-                'results': similar_products or [],
-                'search_method': search_method
-            }
-        
-        # Выводим диагностику в логи
-        if similar_products:
-            similarities = [p['similarity'] for p in similar_products]
-            logger.info(f"Найдено {len(similar_products)} товаров, схожести: {similarities}")
+        # Определяем отдел для поиска
+        if selected_department == "🔍 Поиск по всем отделам":
+            department_name = "ВСЕ"
         else:
-            logger.warning("Ни один метод поиска не дал результатов!")
+            # Преобразуем отображаемое название в системное
+            department_name = DEPARTMENTS.get(selected_department, "ВСЕ")
             
-            # Проверяем статистику БД для диагностики
-            stats = unified_db_service.get_database_stats()
-            logger.info(f"Статистика БД: {stats}")
+            # ИСПРАВЛЕНИЕ: Проверяем, найден ли отдел в словаре
+            if selected_department not in DEPARTMENTS and selected_department != "🔍 Поиск по всем отделам":
+                logger.warning(f"⚠️ ПРОБЛЕМА: Отдел '{selected_department}' не найден в словаре DEPARTMENTS!")
+                logger.warning(f"⚠️ Доступные отделы: {list(DEPARTMENTS.keys())}")
+                logger.warning(f"⚠️ Поиск будет выполнен по всем отделам по умолчанию")
         
-        # Удаляем временный файл
-        if os.path.exists(photo_path):
-            os.remove(photo_path)
+        # Логируем детали выбора отдела
+        logger.info(f"🎯 Обрабатываем фото от пользователя {update.effective_user.id}")
+        logger.info(f"📂 Выбранный отдел пользователем: '{selected_department}'")
+        logger.info(f"🏷️ Системное название отдела: '{department_name}'")
         
-        # Удаляем сообщение о загрузке
-        await loading_message.delete()
+        # Выполняем поиск сразу в выбранном отделе
+        await perform_department_search(update, context, photo_path, photo.file_id, department_name, short_id, processing_msg)
         
-        if not similar_products:
-            await update.message.reply_text(
-                "😔 К сожалению, не удалось найти достаточно похожие товары.\n\n"
-                "🎯 Для лучших результатов:\n"
-                "• Убедитесь, что фото содержит строительный товар\n"
-                "• Сделайте фото более чётким и крупным\n"
-                "• Уберите лишние объекты из кадра\n"
-                "• Улучшите освещение\n"
-                "• Сфотографируйте товар с разных ракурсов\n\n"
-                "💡 Бот ищет только среди строительных материалов, инструментов и товаров для дома.\n\n"
-                "🐛 Если проблема повторяется, воспользуйтесь функцией 'Сообщить о баге' в результатах поиска"
-            )
-            return
-        
-        # Проверяем качество результатов (пороги понижены для лучшего поиска)
-        best_similarity = similar_products[0]['similarity']
-        if best_similarity < 0.3:  # Понижен с 0.5 до 0.3
-            quality_warning = "\n⚠️ Результаты с низкой схожестью - возможно, товар не из нашего каталога"
-        elif best_similarity < 0.5:  # Понижен с 0.7 до 0.5
-            quality_warning = "\n📝 Результаты с умеренной схожестью"
-        else:
-            quality_warning = "\n✅ Найдены очень похожие товары!"
-        
-        await update.message.reply_text(
-            f"🎯 Найдено {len(similar_products)} стабильных результатов{quality_warning}"
-        )
-        
-        # Отправляем результаты
-        await send_search_results(update, context, similar_products, get_short_id(photo.file_id))
-        
-        # Логируем производительность
-        try:
-            from toolbot.services.monitoring import monitoring
-            response_time = (time.time() - start_time) * 1000  # В миллисекундах
-            monitoring.log_response_time('photo_search', response_time, success=True)
-            monitoring.log_model_performance('image_search', response_time, accuracy=best_similarity if similar_products else 0)
-        except Exception as e:
-            logger.warning(f"Ошибка логирования производительности: {e}")
+        # Очищаем выбранный отдел после поиска
+        context.user_data.pop('selected_department', None)
         
     except Exception as e:
         # Логируем ошибку в мониторинге
@@ -232,10 +277,22 @@ async def send_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
                 quality_emoji = "❓"
                 quality_text = "Возможное совпадение"
             
+            # Добавляем информацию об отделе если есть
+            department_info = ""
+            if 'department' in product and product['department']:
+                department_info = f"🏪 Отдел: {product['department']}\n"
+            
+            # Добавляем название товара если есть
+            product_name_info = ""
+            if 'product_name' in product and product['product_name'] and product['product_name'] != 'nan':
+                product_name_info = f"📦 Название: {product['product_name']}\n"
+            
             caption = (
                 f"{quality_emoji} Результат {i} - {quality_text}\n"
                 f"📊 Схожесть: {similarity_percent}% (стабильность: {stability_percent}%)\n"
                 f"🏷️ Артикул: {product['item_id']}\n"
+                f"{product_name_info}"
+                f"{department_info}"
                 f"🌐 Ссылка: {product['url']}"
             )
             
@@ -272,40 +329,175 @@ async def send_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Ошибка при отправке результатов поиска.")
 
 async def handle_department_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка выбора отдела"""
+    """Обработка выбора отдела для поиска"""
     query = update.callback_query
     await query.answer()
     
-    if query.data.startswith("select_dept_"):
-        item_id = query.data.replace("select_dept_", "")
+    try:
+        if query.data.startswith("search_dept_"):
+            # Парсим callback_data: search_dept_{department}_{short_id}
+            parts = query.data.split("_", 3)
+            if len(parts) >= 4:
+                department = parts[2]  # отдел
+                short_id = parts[3]   # короткий ID фото
+                
+                # Получаем сохраненные данные о фото
+                photo_path = context.user_data.get(f'photo_path_{short_id}')
+                photo_file_id = context.user_data.get(f'photo_file_id_{short_id}')
+                
+                if not photo_path or not photo_file_id:
+                    await query.edit_message_text("❌ Ошибка: данные фото не найдены. Попробуйте загрузить фото заново.")
+                    return
+                
+                # Показываем сообщение о начале поиска
+                dept_text = "всем отделам" if department == "ВСЕ" else f"отделу '{department}'"
+                await query.edit_message_text(f"🔍 Анализирую изображение и ищу похожие товары по {dept_text}...")
+                
+                # Выполняем поиск с использованием нового сервиса
+                await perform_department_search(update, context, photo_path, photo_file_id, department, short_id)
+                
+            else:
+                await query.edit_message_text("❌ Ошибка в данных запроса")
+                
+    except Exception as e:
+        logger.error(f"Ошибка при обработке выбора отдела: {e}")
+        await query.edit_message_text("❌ Произошла ошибка при обработке запроса")
+
+async def perform_department_search(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                  photo_path: str, photo_file_id: str, department: str, short_id: str, processing_msg=None):
+    """Выполняет поиск по отделу"""
+    import time
+    start_time = time.time()
+    
+    try:
+        # Логируем начало поиска
+        logger.info(f"🔍 Начинаем поиск по отделу: '{department}'")
         
-        # Создаем клавиатуру с отделами
-        keyboard = []
-        for dept in DEPARTMENTS:
-            keyboard.append([InlineKeyboardButton(dept, callback_data=f"dept_{dept}_{item_id}")])
+        # Получаем сервис поиска по отделам
+        dept_search_service = get_department_search_service()
         
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Определяем отдел для поиска (None для поиска по всем отделам)
+        search_department = None if department == "ВСЕ" else department
+        logger.info(f"🎯 Отдел для API поиска: {search_department}")
         
-        await query.edit_message_caption(
-            caption=f"Выберите отдел для товара {item_id}:",
-            reply_markup=reply_markup
+        # Выполняем поиск
+        similar_products = dept_search_service.search_with_multiple_thresholds_by_department(
+            photo_path, 
+            department=search_department, 
+            top_k=5
         )
-    
-    elif query.data.startswith("dept_"):
-        # Извлекаем данные
-        parts = query.data.split("_", 2)
-        if len(parts) >= 3:
-            dept_name = parts[1]
-            item_id = parts[2]
-            
-            await query.edit_message_caption(
-                caption=f"✅ Товар {item_id} добавлен в отдел '{dept_name}'"
+        
+        # Логируем сессию поиска
+        stats_service = get_stats_service()
+        if stats_service:
+            user_id = update.effective_user.id
+            username = update.effective_user.username or update.effective_user.first_name
+            search_method = f"department_{department}"
+            session_id = stats_service.log_search_session(
+                user_id=user_id,
+                username=username,
+                photo_file_id=photo_file_id,
+                results=similar_products or [],
+                search_method=search_method
             )
-    
-    elif query.data == "cancel":
-        await query.edit_message_caption(
-            caption="❌ Выбор отдела отменен"
+            
+            # Сохраняем контекст поиска для обратной связи
+            context.user_data[f'search_session_{short_id}'] = {
+                'session_id': session_id,
+                'user_id': user_id,
+                'username': username,
+                'photo_file_id': photo_file_id,
+                'results': similar_products or [],
+                'search_method': search_method,
+                'department': department
+            }
+        
+        # Удаляем временный файл
+        if os.path.exists(photo_path):
+            os.remove(photo_path)
+            
+        # Очищаем временные данные
+        context.user_data.pop(f'photo_path_{short_id}', None)
+        context.user_data.pop(f'photo_file_id_{short_id}', None)
+        
+        # Выводим диагностику в логи
+        department_for_log = "всем отделам" if department == "ВСЕ" else f"отделе '{department}'"
+        
+        if similar_products:
+            similarities = [p['similarity'] for p in similar_products]
+            logger.info(f"Найдено {len(similar_products)} товаров в {department_for_log}, схожести: {similarities}")
+        else:
+            logger.warning(f"Поиск в {department_for_log} не дал результатов!")
+        
+        if not similar_products:
+            # Получаем статистику по отделам для вывода
+            dept_stats = dept_search_service.get_department_stats()
+            dept_info = f"\n\n📊 Доступные отделы:\n"
+            for dept, count in list(dept_stats.items())[:5]:
+                dept_info += f"• {dept}: {count} товаров\n"
+            
+            # Используем processing_msg если есть, иначе callback_query
+            if processing_msg:
+                await processing_msg.edit_text(
+                    f"😔 К сожалению, не удалось найти похожие товары в отделе '{department}'.\n\n"
+                    "🎯 Попробуйте:\n"
+                    "• Выбрать другой отдел\n"
+                    "• Поиск по всем отделам\n"
+                    "• Сделать более четкое фото\n"
+                    "• Сфотографировать товар с другого ракурса"
+                    + dept_info
+                )
+            else:
+                await update.callback_query.edit_message_text(
+                    f"😔 К сожалению, не удалось найти похожие товары в отделе '{department}'.\n\n"
+                    "🎯 Попробуйте:\n"
+                    "• Поиск по всем отделам\n"
+                    "• Выбрать другой отдел\n"
+                    "• Сделать более четкое фото\n"
+                    "• Сфотографировать товар с другого ракурса"
+                    + dept_info
+                )
+            return
+        
+        # Проверяем качество результатов
+        best_similarity = similar_products[0]['similarity']
+        
+        # Формируем правильное отображение отдела
+        department_display = "всем отделам" if department == "ВСЕ" else f"отделе '{department}'"
+        
+        if best_similarity < 0.3:
+            quality_warning = f"\n⚠️ Результаты с низкой схожестью в {department_display}"
+        elif best_similarity < 0.5:
+            quality_warning = f"\n📝 Результаты с умеренной схожестью в {department_display}"
+        else:
+            quality_warning = f"\n✅ Найдены похожие товары в {department_display}!"
+        
+        # Используем processing_msg если есть, иначе callback_query
+        if processing_msg:
+            await processing_msg.edit_text(
+                f"🎯 Найдено {len(similar_products)} результатов{quality_warning}"
+            )
+        else:
+            await update.callback_query.edit_message_text(
+                f"🎯 Найдено {len(similar_products)} результатов{quality_warning}"
+            )
+        
+        # Отправляем результаты
+        await send_search_results(update, context, similar_products, short_id)
+        
+        # Логируем производительность
+        try:
+            from toolbot.services.monitoring import monitoring
+            response_time = (time.time() - start_time) * 1000
+            monitoring.log_response_time('department_search', response_time, success=True)
+            monitoring.log_model_performance('department_search', response_time, accuracy=best_similarity)
+        except Exception as e:
+            logger.warning(f"Ошибка логирования производительности: {e}")
+            
+    except Exception as e:
+        logger.error(f"Ошибка при поиске по отделу: {e}")
+        await update.callback_query.edit_message_text(
+            f"❌ Произошла ошибка при поиске в отделе '{department}'. Попробуйте еще раз."
         )
 
 # Функция для получения статистики БД
@@ -424,6 +616,12 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Обработка текстовых сообщений (включая комментарии к поиску и описания товаров)"""
     user_text = update.message.text
     
+    # Проверяем админское пошаговое заполнение данных товара
+    if 'admin_adding_product' in context.user_data:
+        from handlers.admin_training_handler import handle_admin_product_step
+        await handle_admin_product_step(update, context, user_text)
+        return
+    
     # Проверяем различные типы ожидаемого ввода
     awaiting_comment_for = context.user_data.get('awaiting_comment_for')
     awaiting_new_product_for = context.user_data.get('awaiting_new_product_for')
@@ -463,6 +661,24 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Обработка указания правильного товара
     elif awaiting_correct_item_for:
         await handle_correct_item_specification(update, context, awaiting_correct_item_for, user_text)
+        return
+    
+    # ИСПРАВЛЕНИЕ: Проверяем, является ли это сообщение кнопкой отдела
+    text = update.message.text
+    logger.info(f"🔍 Обрабатываем текстовое сообщение: '{text}'")
+    
+    # Проверяем, это ли кнопка отдела
+    DEPARTMENTS = [
+        "🔍 Поиск по всем отделам",
+        "🛠️ ИНСТРУМЕНТЫ", "🎨 КРАСКИ", "🚰 САНТЕХНИКА", "🧱 СТРОЙМАТЕРИАЛЫ",
+        "🏠 НАПОЛЬНЫЕ ПОКРЫТИЯ", "🌿 САД", "💡 СВЕТ", "⚡ ЭЛЕКТРОТОВАРЫ",
+        "🏠 ОТДЕЛОЧНЫЕ МАТЕРИАЛЫ", "🚿 ВОДОСНАБЖЕНИЕ", "🔩 СКОБЯНЫЕ ИЗДЕЛИЯ",
+        "🗄️ ХРАНЕНИЕ", "🏠 СТОЛЯРНЫЕ ИЗДЕЛИЯ", "🍽️ КУХНИ", "🏢 ПЛИТКА"
+    ]
+    
+    if text in DEPARTMENTS:
+        logger.info(f"✨ Обнаружена кнопка отдела: {text}")
+        await department_selection_handler(update, context)
         return
     
     # Если не ожидается комментарий, передаем управление обычному обработчику текста
@@ -640,17 +856,18 @@ async def handle_new_item_request(update: Update, context: ContextTypes.DEFAULT_
         # Парсим callback_data: new_item_{short_id}
         short_id = query.data.replace('new_item_', '')
         
-        # Сохраняем состояние ожидания описания нового товара
+        # Сохраняем состояние ожидания описания товара
         context.user_data['awaiting_new_product_for'] = short_id
         
         await query.edit_message_caption(
-            caption="➕ Добавление нового товара в каталог\n\n"
-                   "📝 Пожалуйста, опишите товар:\n"
-                   "• Название\n"
-                   "• Категория (если знаете)\n"
-                   "• Краткое описание\n\n"
-                   "💡 Пример: 'Дрель ударная, электроинструмент, 850W'\n\n"
-                   "✍️ Напишите описание одним сообщением:",
+            caption="➕ *Предложение нового товара*\n\n"
+                   "📝 Опишите товар, который вы искали:\n\n"
+                   "💡 Например:\n"
+                   "• `Дрель ударная Makita`\n"
+                   "• `Саморезы по дереву 4x50`\n"
+                   "• `Краска белая водоэмульсионная`\n\n"
+                   "✍️ Напишите название и описание товара:",
+            parse_mode='Markdown',
             reply_markup=None
         )
         
@@ -849,3 +1066,101 @@ async def handle_correct_item_specification(update: Update, context: ContextType
         )
         if 'awaiting_correct_item_for' in context.user_data:
             del context.user_data['awaiting_correct_item_for']
+
+
+
+
+
+async def generate_product_vectors(image_source: str, title: str, description: str):
+    """Генерация векторов для товара через CLIP модель"""
+    try:
+        # Импортируем необходимые модули
+        from toolbot.services.image_search import ImageSearchService
+        import torch
+        import numpy as np
+        from PIL import Image
+        import requests
+        from io import BytesIO
+        
+        # Инициализируем модель
+        search_service = ImageSearchService.get_instance()
+        if not search_service.initialize_model():
+            logger.error("❌ Не удалось инициализировать модель поиска")
+            return None
+        
+        # Сохраняем изображение во временный файл для обработки
+        temp_image_path = None
+        if image_source.startswith('http'):
+            # Загружаем по URL
+            response = requests.get(image_source, timeout=10)
+            if response.status_code == 200:
+                image = Image.open(BytesIO(response.content)).convert('RGB')
+                # Сохраняем во временный файл
+                import tempfile
+                temp_image_path = tempfile.mktemp(suffix='.jpg')
+                image.save(temp_image_path)
+            else:
+                logger.error(f"❌ Не удалось загрузить изображение по URL: {image_source}")
+                return None
+        else:
+            # Локальный файл
+            if os.path.exists(image_source):
+                temp_image_path = image_source
+            else:
+                logger.error(f"❌ Файл не найден: {image_source}")
+                return None
+        
+        if temp_image_path is None:
+            logger.error(f"❌ Не удалось подготовить изображение: {image_source}")
+            return None
+            
+        # Генерируем векторы изображения через сервис
+        image_vector = search_service.extract_features(temp_image_path)
+        if image_vector is None:
+            logger.error(f"❌ Не удалось извлечь признаки изображения")
+            # Удаляем временный файл если создавали его
+            if image_source.startswith('http') and os.path.exists(temp_image_path):
+                os.remove(temp_image_path)
+            return None
+        
+        # Генерируем векторы текста через CLIP модель (с ограничением длины)
+        text_prompt = f"{title}. {description}"
+        
+        # CLIP принимает максимум 77 токенов, обрезаем если нужно
+        max_length = 75  # Оставляем запас для специальных токенов
+        text_inputs = search_service.clip_processor(
+            text=[text_prompt], 
+            return_tensors="pt", 
+            padding=True, 
+            truncation=True,
+            max_length=max_length
+        )
+        
+        # Переносим тензоры на то же устройство что и модель
+        device = next(search_service.clip_model.parameters()).device
+        text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
+        
+        with torch.no_grad():
+            text_features = search_service.clip_model.get_text_features(**text_inputs)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            text_vector = text_features.cpu().numpy().astype('float32').reshape(-1)
+        
+        # Комбинируем векторы (80% изображение, 20% текст)
+        combined_vector = 0.8 * image_vector + 0.2 * text_vector
+        
+        # Нормализуем
+        combined_vector = combined_vector / np.linalg.norm(combined_vector)
+        
+        # Конвертируем в bytes для сохранения в БД
+        vector_bytes = combined_vector.astype(np.float32).tobytes()
+        
+        # Удаляем временный файл если создавали его
+        if image_source.startswith('http') and os.path.exists(temp_image_path):
+            os.remove(temp_image_path)
+        
+        logger.info(f"✅ Векторы сгенерированы для товара: {title}")
+        return vector_bytes
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при генерации векторов: {e}")
+        return None
